@@ -15,9 +15,9 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Fynd SEO Operations Studio",
+  title: "SEO - Growth",
   description:
-    "A lightweight SEO operations studio for technical audits, Ahrefs-backed keyword intelligence with local fallback, fix planning, and page creation.",
+    "A dark-mode SEO operations workspace for PageSpeed-style audits, keyword intelligence, fix planning, and page creation.",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${manrope.variable} ${fraunces.variable} min-h-screen bg-[#f5efe6] font-sans text-[#231815] antialiased`}
+        className={`${manrope.variable} ${fraunces.variable} min-h-screen bg-[#050816] font-sans text-[#dbe8ff] antialiased`}
       >
         {children}
         <Toaster richColors position="top-right" />

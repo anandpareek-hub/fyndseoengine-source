@@ -1,4 +1,4 @@
-# Fynd SEO Engine Personal Studio
+# SEO - Growth
 
 This repo has been simplified into a single-user SEO workspace.
 

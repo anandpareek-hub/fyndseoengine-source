@@ -4,20 +4,29 @@ import { startTransition, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { marked } from "marked";
 import {
+  ArrowLeft,
   ArrowRight,
   BookText,
   CheckCircle2,
   Database,
   Copy,
   Download,
+  EllipsisVertical,
   FilePlus2,
   FileSearch,
   Globe2,
+  Gauge,
   Hammer,
   History,
+  LayoutGrid,
   Link2,
+  Monitor,
   NotebookPen,
   RefreshCcw,
+  Rocket,
+  Settings2,
+  ShieldCheck,
+  Smartphone,
   Sparkles,
   Target,
   TriangleAlert,
@@ -40,7 +49,7 @@ import type {
   WorkspaceProfile,
 } from "@/lib/studio-types";
 
-type WorkflowTab = "strategy" | "audit" | "keywords" | "actions" | "pages";
+type WorkflowTab = "strategy" | "audit" | "keywords" | "actions" | "pages" | "settings";
 
 type NewPageForm = {
   pageTitle: string;
@@ -135,38 +144,45 @@ const workflows: Array<{
 }> = [
   {
     id: "strategy",
-    label: "Strategy Studio",
-    eyebrow: "Plan",
-    description: "Generate snapshots, briefs, and calendars for the next publishing cycle.",
-    icon: <BookText className="size-4" />,
-  },
-  {
-    id: "audit",
-    label: "Technical Audit",
-    eyebrow: "Inspect",
-    description: "Run a page audit with HTML evidence, quick wins, and major fixes.",
-    icon: <FileSearch className="size-4" />,
-  },
-  {
-    id: "actions",
-    label: "Fix Actions",
-    eyebrow: "Prioritize",
-    description: "Turn the latest audit into a concrete fix backlog and follow-up page ideas.",
-    icon: <Hammer className="size-4" />,
+    label: "Dashboard",
+    eyebrow: "Audit",
+    description: "Overview, strategy drafts, and the current SEO operating state.",
+    icon: <LayoutGrid className="size-4" />,
   },
   {
     id: "keywords",
-    label: "Keyword Map",
-    eyebrow: "Expand",
-    description: "Use Ahrefs-backed live opportunities when possible, with a local fallback that keeps the workflow moving.",
-    icon: <Target className="size-4" />,
+    label: "Basic SEO",
+    eyebrow: "Audit",
+    description: "Keyword clustering, intent mapping, and foundational SEO opportunities.",
+    icon: <ShieldCheck className="size-4" />,
+  },
+  {
+    id: "actions",
+    label: "Advanced",
+    eyebrow: "Audit",
+    description: "Turn the latest audit into a concrete fix backlog and follow-up page ideas.",
+    icon: <Rocket className="size-4" />,
+  },
+  {
+    id: "audit",
+    label: "PageSpeed",
+    eyebrow: "Audit",
+    description: "Run a page-speed style audit with HTML evidence, quick wins, and major fixes.",
+    icon: <Gauge className="size-4" />,
   },
   {
     id: "pages",
-    label: "New Page Drafts",
-    eyebrow: "Create",
+    label: "Pages",
+    eyebrow: "Audit",
     description: "Draft fresh SEO pages with metadata, structure, CTA, and publishing copy.",
     icon: <FilePlus2 className="size-4" />,
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    eyebrow: "Settings",
+    description: "Project profile, shared workspace, and deployment-aware storage controls.",
+    icon: <Settings2 className="size-4" />,
   },
 ];
 
@@ -177,7 +193,7 @@ type PersonalSeoWorkspaceProps = {
 export default function PersonalSeoWorkspace({
   legacyPath,
 }: PersonalSeoWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<WorkflowTab>("strategy");
+  const [activeTab, setActiveTab] = useState<WorkflowTab>("audit");
   const [profile, setProfile] = useState<WorkspaceProfile>(emptyProfile);
   const [kind, setKind] = useState<DraftKind>("strategy-snapshot");
   const [focusKeyword, setFocusKeyword] = useState("");
@@ -201,6 +217,7 @@ export default function PersonalSeoWorkspace({
   const [keywordLoading, setKeywordLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(false);
+  const [auditDevice, setAuditDevice] = useState<"mobile" | "desktop">("mobile");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -369,13 +386,7 @@ export default function PersonalSeoWorkspace({
     "The keyword map is currently using the local model. Add a website URL and a working Ahrefs key to enrich it with live search data.";
   const keywordSiteMetrics = keywordReport?.siteMetrics || [];
   const keywordCompetitors = keywordReport?.competitors || [];
-  const workflowStatuses: Record<WorkflowTab, string> = {
-    strategy: activeDraft ? "Draft ready" : history.length ? `${history.length} saved` : "Start here",
-    audit: auditResult ? `${auditResult.score}/100` : "Needs URL",
-    keywords: keywordReport ? keywordProviderLabel : "Build map",
-    actions: actionPlan ? `${actionPlan.quickWins.length + actionPlan.strategicFixes.length} actions` : "Need audit",
-    pages: pageDraft ? pageDraft.slug : "Create draft",
-  };
+  const activeView = workflows.find((item) => item.id === activeTab) || workflows[3];
   const operationsOverview = [
     {
       label: "Crawler",
@@ -834,307 +845,266 @@ export default function PersonalSeoWorkspace({
   }
 
   return (
-    <main className="relative overflow-hidden pb-16">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[38rem] bg-[radial-gradient(circle_at_top,rgba(245,176,138,0.58),transparent_38%),radial-gradient(circle_at_right,rgba(143,52,18,0.08),transparent_26%),linear-gradient(180deg,rgba(255,250,242,0.95),rgba(245,239,230,0))]" />
-
-      <div className="mx-auto max-w-7xl px-5 pt-8 sm:px-6 lg:px-8">
-        <motion.section
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-          className="rounded-[2rem] border border-[#3f2114]/10 bg-[#2a1d18] px-6 py-6 text-[#fff8f0] shadow-[0_30px_90px_rgba(33,18,12,0.22)] sm:px-7 sm:py-7"
-        >
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="mb-4 flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/72">
-                  <Sparkles className="size-3.5" />
-                  SEO operations studio
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full border border-[#f5b08a]/25 bg-[#f5b08a]/10 px-3 py-1 text-xs font-medium text-[#ffd6c0]">
-                  OpenAI-powered drafts
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs font-medium text-white/72">
-                  Ahrefs fallback built in
-                </span>
-              </div>
-
-              <h1 className="font-display text-[2.1rem] leading-[1.04] tracking-tight sm:text-[2.6rem] lg:text-[3.05rem]">
-                One calmer workflow for technical audits, fix queues, live keyword intelligence, and page creation.
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-[13px] leading-7 text-white/70 sm:text-[14px]">
-                The studio stays dependable for day-to-day team use: technical crawl signals stay open-source,
-                Ahrefs enriches keywords when available, and the keyword tab automatically falls back to the
-                local model if the external API is missing, throttled, or down.
-              </p>
+    <main className="min-h-screen bg-[#050816] text-[#dbe8ff]">
+      <div className="flex min-h-screen">
+        <aside className="hidden w-[248px] border-r border-[#15223c] bg-[#0e1525] md:flex md:flex-col">
+          <div className="flex items-center gap-3 border-b border-[#15223c] px-5 py-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#eef2f7] text-[#111827] shadow-sm">
+              <Sparkles className="size-4" />
             </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard label="Saved assets" value={String(totalAssets).padStart(2, "0")} />
-              <StatCard label="Strategy drafts" value={String(history.length).padStart(2, "0")} />
-              <StatCard label="Audit score" value={auditResult ? String(auditResult.score) : "--"} />
-              <StatCard label="Page drafts" value={pageDraft ? "01" : "00"} />
+            <div>
+              <p className="text-lg font-semibold text-[#f8fbff]">SEO - Growth</p>
+              <p className="text-xs text-[#60708d]">SEO Health Check</p>
             </div>
           </div>
 
-          {legacyPath ? (
-            <div className="mt-6 rounded-2xl border border-white/12 bg-white/6 px-4 py-3 text-sm text-white/72">
-              You arrived via <span className="font-semibold text-white">{legacyPath}</span>. Legacy paths still
-              route into this single personal workspace so old bookmarks keep working.
-            </div>
-          ) : null}
-
-          <div className="mt-6 grid gap-3 lg:grid-cols-4">
-            {operationsOverview.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-[1.3rem] border border-white/10 bg-white/6 px-4 py-4"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/48">
-                  {item.label}
-                </p>
-                <p className="mt-2 text-sm font-semibold text-white">{item.value}</p>
-                <p className="mt-2 text-[12px] leading-6 text-white/64">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </motion.section>
-
-        <div className="mt-8 grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
-          <motion.section
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.05 }}
-            className="rounded-[2rem] border border-[#3f2114]/10 bg-[#fffaf3]/85 p-5 shadow-[0_22px_60px_rgba(63,33,20,0.08)] backdrop-blur sm:p-6"
-          >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f3412]">
-                  Project profile
-                </p>
-                <h2 className="font-display mt-2 text-[1.9rem] text-[#231815]">Give the studio real context</h2>
-              </div>
-              <button
-                type="button"
-                onClick={loadSample}
-                className="rounded-full border border-[#3f2114]/12 px-4 py-2 text-sm font-medium text-[#5f4336] transition hover:border-[#d1582a]/35 hover:text-[#d1582a]"
-              >
-                Load sample
-              </button>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Project name"
-                icon={<NotebookPen className="size-4" />}
-                value={profile.projectName}
-                onChange={(value) => setProfile((current) => ({ ...current, projectName: value }))}
-                placeholder="Personal brand, side project, or focused site name"
-              />
-              <Field
-                label="Website URL"
-                icon={<Globe2 className="size-4" />}
-                value={profile.websiteUrl}
-                onChange={(value) => {
-                  setProfile((current) => ({ ...current, websiteUrl: value }));
-                  setAuditUrl(value);
-                }}
-                placeholder="https://example.com"
-              />
-              <LongField
-                label="Audience"
-                value={profile.audience}
-                onChange={(value) => setProfile((current) => ({ ...current, audience: value }))}
-                placeholder="Who the site serves, what they already know, and where they get stuck."
-              />
-              <LongField
-                label="Offer"
-                value={profile.offer}
-                onChange={(value) => setProfile((current) => ({ ...current, offer: value }))}
-                placeholder="What the site sells, teaches, or helps users accomplish."
-              />
-              <LongField
-                label="Differentiators"
-                value={profile.differentiators}
-                onChange={(value) =>
-                  setProfile((current) => ({ ...current, differentiators: value }))
-                }
-                placeholder="Why this project deserves attention over alternatives."
-              />
-              <LongField
-                label="Goals"
-                value={profile.goals}
-                onChange={(value) => setProfile((current) => ({ ...current, goals: value }))}
-                placeholder="Traffic, conversion, authority, email signups, lead flow, or category ownership."
-              />
-              <LongField
-                label="Voice"
-                value={profile.voice}
-                onChange={(value) => setProfile((current) => ({ ...current, voice: value }))}
-                placeholder="Direct, warm, analytical, premium, practical..."
-              />
-              <LongField
-                label="Notes"
-                value={profile.notes}
-                onChange={(value) => setProfile((current) => ({ ...current, notes: value }))}
-                placeholder="Any guardrails, constraints, or business context the assistant should respect."
-              />
-            </div>
-
-            <div className="mt-6 rounded-[1.5rem] border border-[#3f2114]/10 bg-white/82 p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
-                    Shared workspace
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[#6f5a4d]">
-                    Use a stable key so the team can open the same project state once Neo4j is connected.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-[#3f2114]/12 bg-[#fff7ef] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5f4336]">
-                    Storage: {workspaceStorage === "unknown" ? "not checked" : workspaceStorage}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto]">
-                <Field
-                  label="Workspace key"
-                  icon={<Database className="size-4" />}
-                  value={workspaceKey}
-                  onChange={setWorkspaceKey}
-                  placeholder="northstar-running-notes"
-                />
-                <div className="flex flex-wrap gap-3 lg:justify-end">
-                  <GhostButton onClick={() => void loadSharedWorkspace()}>
-                    <Database className="size-4" />
-                    {sharedLoading ? "Loading..." : "Load shared"}
-                  </GhostButton>
-                  <GhostButton onClick={() => void saveSharedWorkspace()}>
-                    <Database className="size-4" />
-                    {sharedLoading ? "Saving..." : "Save shared"}
-                  </GhostButton>
-                  <GhostButton onClick={() => void copyShareLink()}>
-                    <Link2 className="size-4" />
-                    Copy link
-                  </GhostButton>
-                </div>
-              </div>
-            </div>
-          </motion.section>
-
-          <motion.section
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.1 }}
-            className="rounded-[2rem] border border-[#3f2114]/10 bg-[#fff7ef]/80 p-5 shadow-[0_22px_60px_rgba(63,33,20,0.08)] backdrop-blur sm:p-6"
-          >
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f3412]">
-                  Workflow
-                </p>
-                <h2 className="font-display mt-2 text-[1.8rem] text-[#231815]">
-                  Move from audit to output
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={resetWorkspace}
-                className="inline-flex items-center gap-2 rounded-full border border-[#3f2114]/12 px-4 py-2 text-sm font-medium text-[#5f4336] transition hover:border-[#8f3412]/35 hover:text-[#8f3412]"
-              >
-                <RefreshCcw className="size-4" />
-                Clear local data
-              </button>
-            </div>
-
-            <div className="rounded-[1.5rem] border border-[#3f2114]/10 bg-white/90 p-3">
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                {workflows.map((workflow, index) => (
+          <div className="flex-1 px-3 py-5">
+            <div className="space-y-1">
+              {workflows
+                .filter((item) => item.id !== "settings")
+                .map((workflow) => (
                   <button
                     key={workflow.id}
                     type="button"
                     onClick={() => setActiveTab(workflow.id)}
                     className={cn(
-                      "rounded-[1rem] border px-3 py-3 text-left transition-all",
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition",
                       activeTab === workflow.id
-                        ? "border-[#d1582a]/35 bg-[#2a1d18] text-white shadow-[0_10px_22px_rgba(42,29,24,0.14)]"
-                        : "border-[#3f2114]/10 bg-[#fffaf4] text-[#2a1d18] hover:border-[#d1582a]/22 hover:bg-white"
+                        ? "bg-[#162846] text-[#7db0ff]"
+                        : "text-[#b4bfd2] hover:bg-[#121d33] hover:text-[#f8fbff]"
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <span
-                        className={cn(
-                          "inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold",
-                          activeTab === workflow.id
-                            ? "border-white/18 bg-white/8 text-white/72"
-                            : "border-[#3f2114]/10 bg-[#f7efe4] text-[#8f3412]"
-                        )}
-                      >
-                        {index + 1}
-                      </span>
-                      <span
-                        className={cn(
-                          "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]",
-                          activeTab === workflow.id
-                            ? "bg-white/8 text-white/62"
-                            : "bg-[#fff4ea] text-[#8f3412]"
-                        )}
-                      >
-                        {workflowStatuses[workflow.id]}
-                      </span>
-                    </div>
-                    <div
-                      className={cn(
-                        "mt-3 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em]",
-                        activeTab === workflow.id ? "text-white/54" : "text-[#8f3412]"
-                      )}
-                    >
+                    <span className={cn(activeTab === workflow.id ? "text-[#69a6ff]" : "text-[#6d7f9d]")}>
                       {workflow.icon}
-                      {workflow.eyebrow}
-                    </div>
-                    <p className="mt-2 text-sm font-semibold">{workflow.label}</p>
-                    <p
-                      className={cn(
-                        "mt-2 text-[12px] leading-5",
-                        activeTab === workflow.id ? "text-white/68" : "text-[#6f5a4d]"
-                      )}
-                    >
-                      {workflow.description}
-                    </p>
+                    </span>
+                    <span>{workflow.label}</span>
                   </button>
                 ))}
+            </div>
+
+            <div className="mt-6 border-t border-[#15223c] pt-5">
+              <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#60708d]">
+                Settings
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab("settings")}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition",
+                  activeTab === "settings"
+                    ? "bg-[#162846] text-[#7db0ff]"
+                    : "text-[#b4bfd2] hover:bg-[#121d33] hover:text-[#f8fbff]"
+                )}
+              >
+                <span className={cn(activeTab === "settings" ? "text-[#69a6ff]" : "text-[#6d7f9d]")}>
+                  <Settings2 className="size-4" />
+                </span>
+                <span>Settings</span>
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex h-[58px] items-center justify-between border-b border-[#d7dde8] bg-[#eef2f7] px-4 text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.08)]">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab("audit")}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#4f46e5] transition hover:bg-[#dfe7f4]"
+              >
+                <ArrowLeft className="size-5" />
+              </button>
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#ffffff] text-[#6b7280] shadow-sm">
+                <Sparkles className="size-4" />
               </div>
+              <span className="text-[15px] font-semibold">SEO - Growth</span>
             </div>
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#4b5563] transition hover:bg-[#dfe7f4]"
+            >
+              <EllipsisVertical className="size-5" />
+            </button>
+          </header>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {workflows.map((workflow) =>
-                workflow.id === activeTab ? (
-                  <MiniInfoCard
-                    key={workflow.id}
-                    label="Current tab"
-                    value={workflow.description}
-                  />
-                ) : null
-              )}
-              <MiniInfoCard
-                label="Recommended flow"
-                value="Audit the page, review the live or fallback keyword signal, turn that into actions, then ship the next page draft."
-              />
-            </div>
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              className="mb-5"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-2 text-[#69a6ff]">
+                    {activeView.icon}
+                    <h1 className="text-[17px] font-semibold text-[#f8fbff]">{activeView.label}</h1>
+                  </div>
+                  <p className="mt-1 text-[13px] text-[#7f8ea8]">{activeView.description}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-[#1c2a45] bg-[#0d1528] px-3 py-1.5 text-[11px] font-medium text-[#93a4bf]">
+                    Storage: {workspaceStorage === "unknown" ? "not checked" : workspaceStorage}
+                  </span>
+                  <span className="rounded-md border border-[#1c2a45] bg-[#0d1528] px-3 py-1.5 text-[11px] font-medium text-[#93a4bf]">
+                    Ahrefs: {keywordProvider === "ahrefs" ? "live" : "fallback"}
+                  </span>
+                </div>
+              </div>
 
-            <div className="mt-6 rounded-[1.5rem] border border-[#3f2114]/10 bg-white/72 p-4 text-sm leading-6 text-[#6f5a4d]">
-              Local storage keeps your profile, latest audit, fix plan, and drafts in this browser. Network
-              calls only happen when you run an audit, request OpenAI generation, or ask for Ahrefs-backed
-              keyword intelligence. If Ahrefs is unavailable, the keyword flow keeps running on the local
-              deterministic model.
-            </div>
-          </motion.section>
-        </div>
+              {legacyPath ? (
+                <div className="mt-3 rounded-xl border border-[#1c2a45] bg-[#0d1528] px-4 py-3 text-[12px] text-[#8ea0bc]">
+                  Opened from legacy path <span className="font-semibold text-[#dbe8ff]">{legacyPath}</span>.
+                </div>
+              ) : null}
+            </motion.section>
 
-        <AnimatePresence mode="wait">
+            {activeTab === "settings" ? (
+              <motion.section
+                key="settings-shell"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.24 }}
+                className="mb-6 space-y-6"
+              >
+                <div className="grid gap-4 lg:grid-cols-4">
+                  <StatCard label="Saved assets" value={String(totalAssets).padStart(2, "0")} />
+                  <StatCard label="Strategy drafts" value={String(history.length).padStart(2, "0")} />
+                  <StatCard label="Audit score" value={auditResult ? String(auditResult.score) : "--"} />
+                  <StatCard label="Page drafts" value={pageDraft ? "01" : "00"} />
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-4">
+                  {operationsOverview.map((item) => (
+                    <MiniInfoCard key={item.label} label={item.label} value={item.detail} />
+                  ))}
+                </div>
+
+                <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                  <PanelCard
+                    eyebrow="Project settings"
+                    title="Give SEO - Growth real context"
+                    description="This is the shared profile used across audits, actions, keyword mapping, and page drafting."
+                    actions={
+                      <>
+                        <GhostButton onClick={loadSample}>
+                          <Sparkles className="size-4" />
+                          Load sample
+                        </GhostButton>
+                        <GhostButton onClick={resetWorkspace}>
+                          <RefreshCcw className="size-4" />
+                          Clear local data
+                        </GhostButton>
+                      </>
+                    }
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field
+                        label="Project name"
+                        icon={<NotebookPen className="size-4" />}
+                        value={profile.projectName}
+                        onChange={(value) => setProfile((current) => ({ ...current, projectName: value }))}
+                        placeholder="Personal brand, side project, or focused site name"
+                      />
+                      <Field
+                        label="Website URL"
+                        icon={<Globe2 className="size-4" />}
+                        value={profile.websiteUrl}
+                        onChange={(value) => {
+                          setProfile((current) => ({ ...current, websiteUrl: value }));
+                          setAuditUrl(value);
+                        }}
+                        placeholder="https://example.com"
+                      />
+                      <LongField
+                        label="Audience"
+                        value={profile.audience}
+                        onChange={(value) => setProfile((current) => ({ ...current, audience: value }))}
+                        placeholder="Who the site serves, what they already know, and where they get stuck."
+                      />
+                      <LongField
+                        label="Offer"
+                        value={profile.offer}
+                        onChange={(value) => setProfile((current) => ({ ...current, offer: value }))}
+                        placeholder="What the site sells, teaches, or helps users accomplish."
+                      />
+                      <LongField
+                        label="Differentiators"
+                        value={profile.differentiators}
+                        onChange={(value) => setProfile((current) => ({ ...current, differentiators: value }))}
+                        placeholder="Why this project deserves attention over alternatives."
+                      />
+                      <LongField
+                        label="Goals"
+                        value={profile.goals}
+                        onChange={(value) => setProfile((current) => ({ ...current, goals: value }))}
+                        placeholder="Traffic, conversion, authority, email signups, lead flow, or category ownership."
+                      />
+                      <LongField
+                        label="Voice"
+                        value={profile.voice}
+                        onChange={(value) => setProfile((current) => ({ ...current, voice: value }))}
+                        placeholder="Direct, warm, analytical, premium, practical..."
+                      />
+                      <LongField
+                        label="Notes"
+                        value={profile.notes}
+                        onChange={(value) => setProfile((current) => ({ ...current, notes: value }))}
+                        placeholder="Any guardrails, constraints, or business context the assistant should respect."
+                      />
+                    </div>
+                  </PanelCard>
+
+                  <PanelCard
+                    eyebrow="Shared workspace"
+                    title="Neo4j and sharing controls"
+                    description="Use a stable key so the team can open the same project state when Neo4j is connected to a public host."
+                  >
+                    <div className="grid gap-4">
+                      <Field
+                        label="Workspace key"
+                        icon={<Database className="size-4" />}
+                        value={workspaceKey}
+                        onChange={setWorkspaceKey}
+                        placeholder="northstar-running-notes"
+                      />
+                      <div className="flex flex-wrap gap-3">
+                        <PrimaryButton onClick={() => void loadSharedWorkspace()} disabled={sharedLoading}>
+                          <Database className="size-4" />
+                          {sharedLoading ? "Loading..." : "Load shared"}
+                        </PrimaryButton>
+                        <GhostButton onClick={() => void saveSharedWorkspace()}>
+                          <Database className="size-4" />
+                          {sharedLoading ? "Saving..." : "Save shared"}
+                        </GhostButton>
+                        <GhostButton onClick={() => void copyShareLink()}>
+                          <Link2 className="size-4" />
+                          Copy link
+                        </GhostButton>
+                      </div>
+                      <div className="grid gap-3">
+                        <MiniInfoCard
+                          label="Workspace status"
+                          value={
+                            workspaceStorage === "neo4j"
+                              ? "Neo4j is connected and shared workspaces are available."
+                              : "The app is still local-first. Use a public Neo4j instance like Aura for deployed team sharing."
+                          }
+                        />
+                        <MiniInfoCard
+                          label="Recommended flow"
+                          value="Run PageSpeed, review Basic SEO keywords, convert issues into Advanced actions, then ship the next Page draft."
+                        />
+                      </div>
+                    </div>
+                  </PanelCard>
+                </div>
+              </motion.section>
+            ) : null}
+
+            <AnimatePresence mode="wait">
           {activeTab === "strategy" ? (
             <motion.section
               key="strategy"
@@ -1145,9 +1115,9 @@ export default function PersonalSeoWorkspace({
               className="mt-6 grid gap-6 xl:grid-cols-[0.38fr_0.62fr]"
             >
               <PanelCard
-                eyebrow="Strategy Studio"
-                title="Generate operator-ready drafts"
-                description="Use the same lightweight drafting workflow for calendars, briefs, refreshes, and content direction."
+                eyebrow="Dashboard"
+                title="Generate operator-ready strategy drafts"
+                description="Use the dashboard to shape content calendars, briefs, refreshes, and high-level SEO direction."
               >
                 <div className="grid gap-3">
                   {deliverables.map((item) => (
@@ -1155,17 +1125,17 @@ export default function PersonalSeoWorkspace({
                       key={item.id}
                       type="button"
                       onClick={() => setKind(item.id)}
-                      className={cn(
-                        "rounded-[1.4rem] border p-4 text-left transition-all",
-                        kind === item.id
-                          ? "border-[#d1582a]/35 bg-[#2a1d18] text-white"
-                          : "border-[#3f2114]/10 bg-white/90 text-[#231815] hover:border-[#d1582a]/25"
-                      )}
-                    >
+                        className={cn(
+                          "rounded-[1.4rem] border p-4 text-left transition-all",
+                          kind === item.id
+                            ? "border-[#d1582a]/35 bg-[#2a1d18] text-white"
+                            : "border-[#1f2d4b] bg-[#10192d] text-[#f8fbff] hover:border-[#315aa4]"
+                        )}
+                      >
                       <p
                         className={cn(
                           "text-[11px] font-semibold uppercase tracking-[0.22em]",
-                          kind === item.id ? "text-white/56" : "text-[#8f3412]"
+                          kind === item.id ? "text-white/56" : "text-[#7db0ff]"
                         )}
                       >
                         {item.eyebrow}
@@ -1207,15 +1177,15 @@ export default function PersonalSeoWorkspace({
                   </PrimaryButton>
                 </div>
 
-                <div className="mt-6 border-t border-[#3f2114]/10 pt-5">
+                <div className="mt-6 border-t border-[#1f2d4b] pt-5">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                         Recent drafts
                       </p>
-                      <p className="mt-1 text-sm text-[#6f5a4d]">Switch between the latest saved outputs.</p>
+                      <p className="mt-1 text-sm text-[#7f8ea8]">Switch between the latest saved outputs.</p>
                     </div>
-                    <History className="size-4 text-[#8f3412]" />
+                    <History className="size-4 text-[#7db0ff]" />
                   </div>
 
                   <div className="space-y-3">
@@ -1229,13 +1199,13 @@ export default function PersonalSeoWorkspace({
                             "w-full rounded-[1.3rem] border px-4 py-3 text-left transition-all",
                             activeDraft?.id === item.id
                               ? "border-[#d1582a]/35 bg-[#2a1d18] text-white"
-                              : "border-[#3f2114]/10 bg-white/88 text-[#231815] hover:border-[#d1582a]/22"
+                              : "border-[#1f2d4b] bg-[#10192d] text-[#f8fbff] hover:border-[#315aa4]"
                           )}
                         >
                           <p
                             className={cn(
                               "text-[11px] font-semibold uppercase tracking-[0.22em]",
-                              activeDraft?.id === item.id ? "text-white/56" : "text-[#8f3412]"
+                              activeDraft?.id === item.id ? "text-white/56" : "text-[#7db0ff]"
                             )}
                           >
                             {item.kind.replace(/-/g, " ")}
@@ -1290,7 +1260,7 @@ export default function PersonalSeoWorkspace({
                 }
               >
                 {activeDraft ? (
-                  <div className="rounded-[1.6rem] border border-[#3f2114]/10 bg-white/90 p-5 sm:p-6">
+                  <div className="rounded-[1.6rem] border border-[#1f2d4b] bg-[#0b1426] p-5 sm:p-6">
                     <div
                       className="article-content font-sans"
                       dangerouslySetInnerHTML={{ __html: strategyHtml }}
@@ -1329,48 +1299,95 @@ export default function PersonalSeoWorkspace({
               className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
             >
               <PanelCard
-                eyebrow="Technical Audit"
-                title="Inspect one URL at a time"
-                description="The audit checks core technical signals, content depth, link structure, and HTML evidence using an open-source parser."
+                eyebrow="PageSpeed Insights"
+                title="Full Lighthouse-style audit with opportunities, diagnostics & core technical SEO"
+                description="Run the open-source page audit from one test URL, review the current state, and turn issues into action items the team can ship."
               >
                 <Field
-                  label="Audit URL"
+                  label="Test URL"
                   icon={<Globe2 className="size-4" />}
                   value={auditUrl}
                   onChange={setAuditUrl}
                   placeholder="https://example.com/page"
                 />
 
-                <div className="mt-6 flex flex-wrap gap-3">
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex rounded-lg border border-[#1f2d4b] bg-[#0b1426] p-1">
+                    <button
+                      type="button"
+                      onClick={() => setAuditDevice("mobile")}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium transition",
+                        auditDevice === "mobile"
+                          ? "bg-[#274b8c] text-[#dce7ff]"
+                          : "text-[#7f8ea8] hover:text-[#dbe8ff]"
+                      )}
+                    >
+                      <Smartphone className="size-3.5" />
+                      Mobile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuditDevice("desktop")}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium transition",
+                        auditDevice === "desktop"
+                          ? "bg-[#274b8c] text-[#dce7ff]"
+                          : "text-[#7f8ea8] hover:text-[#dbe8ff]"
+                      )}
+                    >
+                      <Monitor className="size-3.5" />
+                      Desktop
+                    </button>
+                  </div>
                   <PrimaryButton onClick={handleRunAudit} disabled={auditLoading}>
                     {auditLoading ? <WandSparkles className="size-4 animate-pulse" /> : <FileSearch className="size-4" />}
-                    {auditLoading ? "Running audit..." : "Run technical audit"}
+                    {auditLoading ? "Analyzing..." : "Analyze"}
                   </PrimaryButton>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => profile.websiteUrl && setAuditUrl(profile.websiteUrl)}
+                    className="rounded-md border border-[#1f2d4b] bg-[#111a2d] px-3 py-1.5 text-[12px] text-[#91a2bf] transition hover:border-[#2c4f92] hover:text-[#dbe8ff]"
+                  >
+                    Homepage
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => auditResult?.finalUrl && setAuditUrl(auditResult.finalUrl)}
+                    className="rounded-md border border-[#1f2d4b] bg-[#111a2d] px-3 py-1.5 text-[12px] text-[#91a2bf] transition hover:border-[#2c4f92] hover:text-[#dbe8ff]"
+                  >
+                    Current page
+                  </button>
                 </div>
 
                 <div className="mt-6 grid gap-3">
                   <MiniInfoCard
                     label="Checks"
-                    value="Titles, canonicals, headings, robots, sitemap, schema, media, links"
+                    value="Titles, canonicals, headings, robots, sitemap, schema, media, links, and action-ready HTML evidence."
                   />
                   <MiniInfoCard
-                    label="Input"
-                    value="Live page HTML fetched directly at request time"
+                    label="Runtime"
+                    value={auditLoading ? "Analyzing performance, SEO, accessibility & best practices..." : "Live page HTML fetched directly at request time"}
                   />
                   <MiniInfoCard
                     label="Output"
-                    value="Score, quick wins, major fixes, issue buckets, and HTML evidence"
+                    value="Score, quick wins, major fixes, issue buckets, and current-vs-to-be recommendations"
                   />
                 </div>
               </PanelCard>
 
               <PanelCard
-                eyebrow="Audit Results"
-                title={auditResult ? auditResult.title : "Run an audit to inspect a page"}
+                eyebrow="Diagnostics"
+                title={auditResult ? auditResult.title : auditLoading ? "Running Lighthouse audit..." : "Run an audit to inspect a page"}
                 description={
                   auditResult
                     ? `${auditResult.status} at ${auditResult.score}/100 for ${auditResult.finalUrl}`
-                    : "Once the audit completes, this area becomes your technical SEO review board."
+                    : auditLoading
+                      ? "Analyzing performance, SEO, accessibility & best practices. This usually takes a few seconds."
+                      : "Once the audit completes, this area becomes your technical SEO review board."
                 }
               >
                 {auditResult ? (
@@ -1451,10 +1468,10 @@ export default function PersonalSeoWorkspace({
                     <div>
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                             HTML evidence
                           </p>
-                          <p className="mt-1 text-sm text-[#6f5a4d]">
+                          <p className="mt-1 text-sm text-[#7f8ea8]">
                             Current markup snapshots with the direction of the recommended fix.
                           </p>
                         </div>
@@ -1465,23 +1482,23 @@ export default function PersonalSeoWorkspace({
                           {auditResult.htmlEvidence.map((item) => (
                             <div
                               key={`${item.label}-${item.current}`}
-                              className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4"
+                            className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4"
                             >
-                              <p className="text-sm font-semibold text-[#231815]">{item.label}</p>
-                              <div className="mt-3 space-y-3 text-sm leading-6 text-[#5f4336]">
+                              <p className="text-sm font-semibold text-[#f8fbff]">{item.label}</p>
+                              <div className="mt-3 space-y-3 text-sm leading-6 text-[#c0d0e7]">
                                 <div>
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                                     Current
                                   </p>
-                                  <code className="mt-2 block rounded-xl bg-[#f7efe4] px-3 py-3 text-xs text-[#5b4437]">
+                                  <code className="mt-2 block rounded-xl bg-[#152340] px-3 py-3 text-xs text-[#cfe0ff]">
                                     {item.current}
                                   </code>
                                 </div>
                                 <div>
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                                     To-be
                                   </p>
-                                  <code className="mt-2 block rounded-xl bg-[#f7efe4] px-3 py-3 text-xs text-[#5b4437]">
+                                  <code className="mt-2 block rounded-xl bg-[#152340] px-3 py-3 text-xs text-[#cfe0ff]">
                                     {item.solution}
                                   </code>
                                 </div>
@@ -1497,6 +1514,16 @@ export default function PersonalSeoWorkspace({
                         />
                       )}
                     </div>
+                  </div>
+                ) : auditLoading ? (
+                  <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[1.2rem] border border-[#1f2d4b] bg-[#0b1426] text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#2a467d]">
+                      <RefreshCcw className="size-7 animate-spin text-[#5f93ff]" />
+                    </div>
+                    <p className="mt-5 text-[15px] font-medium text-[#dbe8ff]">Running Lighthouse audit...</p>
+                    <p className="mt-2 max-w-md text-[13px] leading-6 text-[#7f8ea8]">
+                      Analyzing performance, SEO, accessibility & best practices with the current open-source audit stack.
+                    </p>
                   </div>
                 ) : (
                   <div className="grid gap-4 md:grid-cols-3">
@@ -1531,7 +1558,7 @@ export default function PersonalSeoWorkspace({
               className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
             >
               <PanelCard
-                eyebrow="Keyword Map"
+                eyebrow="Basic SEO"
                 title="Blend Ahrefs live intel with local fallback"
                 description="The keyword engine tries Ahrefs first when the key and website URL are available, then falls back to the local model so the workflow never blocks."
               >
@@ -1567,7 +1594,7 @@ export default function PersonalSeoWorkspace({
               </PanelCard>
 
               <PanelCard
-                eyebrow="Keyword Results"
+                eyebrow="Basic SEO Results"
                 title={keywordReport ? keywordProviderLabel : "Generate the keyword map"}
                 description={
                   keywordReport
@@ -1577,20 +1604,20 @@ export default function PersonalSeoWorkspace({
               >
                 {keywordReport ? (
                   <div className="space-y-6">
-                    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
+                    <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                             Intelligence mode
                           </p>
-                          <p className="mt-2 text-sm font-semibold text-[#231815]">
+                          <p className="mt-2 text-sm font-semibold text-[#f8fbff]">
                             {keywordProviderLabel}
                           </p>
-                          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5f4336]">
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#c0d0e7]">
                             {keywordProviderNote}
                           </p>
                         </div>
-                        <span className="rounded-full border border-[#3f2114]/10 bg-[#fff4ea] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f3412]">
+                        <span className="rounded-full border border-[#315aa4] bg-[#13213c] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9ec1ff]">
                           {keywordProvider === "ahrefs" ? "Live provider" : "Fallback provider"}
                         </span>
                       </div>
@@ -1625,10 +1652,10 @@ export default function PersonalSeoWorkspace({
                     {keywordCompetitors.length ? (
                       <div>
                         <div className="mb-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                             Organic competitors
                           </p>
-                          <p className="mt-1 text-sm text-[#6f5a4d]">
+                          <p className="mt-1 text-sm text-[#7f8ea8]">
                             Live overlap domains from Ahrefs that your team can inspect during content and internal-link reviews.
                           </p>
                         </div>
@@ -1683,14 +1710,14 @@ export default function PersonalSeoWorkspace({
               className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
             >
               <PanelCard
-                eyebrow="Fix Actions"
+                eyebrow="Advanced"
                 title="Turn findings into a ship list"
                 description="This workflow converts the most recent audit into quick wins, strategic fixes, and expansion ideas."
               >
                 {auditResult ? (
-                  <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/88 p-4">
-                    <p className="text-sm font-semibold text-[#231815]">Using latest audit context</p>
-                    <p className="mt-2 text-sm leading-6 text-[#6f5a4d]">
+                  <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
+                    <p className="text-sm font-semibold text-[#f8fbff]">Using latest audit context</p>
+                    <p className="mt-2 text-sm leading-6 text-[#c0d0e7]">
                       {auditResult.title} on {auditResult.finalUrl}
                     </p>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1720,7 +1747,7 @@ export default function PersonalSeoWorkspace({
               </PanelCard>
 
               <PanelCard
-                eyebrow="Action Plan"
+                eyebrow="Advanced Results"
                 title={actionPlan ? "Prioritized fixes and follow-up content" : "Generate an action plan"}
                 description={
                   actionPlan
@@ -1737,12 +1764,12 @@ export default function PersonalSeoWorkspace({
 
                     <div>
                       <div className="mb-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
-                          New page opportunities
-                        </p>
-                        <p className="mt-1 text-sm text-[#6f5a4d]">
-                          Content expansions suggested from the latest audit and fix plan.
-                        </p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
+                            New page opportunities
+                          </p>
+                          <p className="mt-1 text-sm text-[#7f8ea8]">
+                            Content expansions suggested from the latest audit and fix plan.
+                          </p>
                       </div>
                       <div className="grid gap-4 lg:grid-cols-2">
                         {actionPlan.newPages.map((item) => (
@@ -1794,20 +1821,20 @@ export default function PersonalSeoWorkspace({
               className="mt-6 grid gap-6 xl:grid-cols-[0.38fr_0.62fr]"
             >
               <PanelCard
-                eyebrow="New Page Generator"
+                eyebrow="Pages"
                 title="Draft the next page you should publish"
                 description="Use the report-style page pattern to generate a page with metadata, structure, CTA, and publishable copy."
               >
                 {keywordReport?.quickWins?.length ? (
-                  <div className="mb-5 rounded-[1.4rem] border border-[#3f2114]/10 bg-white/88 p-4">
-                    <p className="text-sm font-semibold text-[#231815]">Keyword quick wins</p>
+                  <div className="mb-5 rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
+                    <p className="text-sm font-semibold text-[#f8fbff]">Keyword quick wins</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {keywordReport.quickWins.map((item) => (
                         <button
                           key={item}
                           type="button"
                           onClick={() => applyKeyword(item)}
-                          className="rounded-full border border-[#d1582a]/22 bg-[#fff4ea] px-3 py-1.5 text-xs font-medium text-[#8f3412] transition hover:border-[#d1582a]/45 hover:bg-[#fff0e3]"
+                          className="rounded-lg border border-[#315aa4] bg-[#13213c] px-3 py-1.5 text-xs font-medium text-[#9ec1ff] transition hover:border-[#4b78ca]"
                         >
                           {item}
                         </button>
@@ -1817,15 +1844,15 @@ export default function PersonalSeoWorkspace({
                 ) : null}
 
                 {actionPlan?.newPages?.length ? (
-                  <div className="mb-5 rounded-[1.4rem] border border-[#3f2114]/10 bg-white/88 p-4">
-                    <p className="text-sm font-semibold text-[#231815]">Suggested from the latest action plan</p>
+                  <div className="mb-5 rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
+                    <p className="text-sm font-semibold text-[#f8fbff]">Suggested from the latest action plan</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {actionPlan.newPages.map((item) => (
                         <button
                           key={item.slug}
                           type="button"
                           onClick={() => applyOpportunity(item)}
-                          className="rounded-full border border-[#d1582a]/22 bg-[#fff4ea] px-3 py-1.5 text-xs font-medium text-[#8f3412] transition hover:border-[#d1582a]/45 hover:bg-[#fff0e3]"
+                          className="rounded-lg border border-[#315aa4] bg-[#13213c] px-3 py-1.5 text-xs font-medium text-[#9ec1ff] transition hover:border-[#4b78ca]"
                         >
                           {item.title}
                         </button>
@@ -1881,7 +1908,7 @@ export default function PersonalSeoWorkspace({
               </PanelCard>
 
               <PanelCard
-                eyebrow="Page Draft"
+                eyebrow="Pages Result"
                 title={pageDraft ? pageDraft.title : "Generate a page to preview it here"}
                 description={
                   pageDraft
@@ -1933,23 +1960,23 @@ export default function PersonalSeoWorkspace({
                         badge={`${pageDraft.conversionNotes.length}`}
                         items={pageDraft.conversionNotes}
                       />
-                      <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
-                        <p className="text-sm font-semibold text-[#231815]">Metadata QA</p>
-                        <div className="mt-3 space-y-3 text-sm leading-6 text-[#5f4336]">
+                      <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
+                        <p className="text-sm font-semibold text-[#f8fbff]">Metadata QA</p>
+                        <div className="mt-3 space-y-3 text-sm leading-6 text-[#c0d0e7]">
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                               Meta title
                             </p>
                             <p className="mt-1">{pageDraft.metaTitle}</p>
                           </div>
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                               Meta description
                             </p>
                             <p className="mt-1">{pageDraft.metaDescription}</p>
                           </div>
                           <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
                               QA summary
                             </p>
                             <p className="mt-1">{pageDraft.qaSummary}</p>
@@ -1958,7 +1985,7 @@ export default function PersonalSeoWorkspace({
                       </div>
                     </div>
 
-                    <div className="rounded-[1.6rem] border border-[#3f2114]/10 bg-white/90 p-5 sm:p-6">
+                    <div className="rounded-[1.6rem] border border-[#1f2d4b] bg-[#0b1426] p-5 sm:p-6">
                       <div
                         className="article-content font-sans"
                         dangerouslySetInnerHTML={{ __html: pageDraftHtml }}
@@ -1988,6 +2015,8 @@ export default function PersonalSeoWorkspace({
             </motion.section>
           ) : null}
         </AnimatePresence>
+          </div>
+        </div>
       </div>
     </main>
   );
@@ -2001,19 +2030,19 @@ function renderMarkdown(markdown: string) {
 function toneClasses(severity: Severity) {
   switch (severity) {
     case "high":
-      return "border-[#d1582a]/28 bg-[#fff0e8] text-[#8f3412]";
+      return "border-[#7f1d1d]/70 bg-[#2a1118] text-[#fda4af]";
     case "medium":
-      return "border-[#c89b3c]/28 bg-[#fff7e7] text-[#875d07]";
+      return "border-[#5b4a1d]/70 bg-[#251f12] text-[#facc15]";
     case "low":
-      return "border-[#76945b]/28 bg-[#f2f7ed] text-[#406628]";
+      return "border-[#1f4b3d]/70 bg-[#0f231d] text-[#86efac]";
   }
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.4rem] border border-white/10 bg-white/6 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.22em] text-white/52">{label}</p>
-      <p className="mt-2 text-[1.35rem] font-semibold text-white">{value}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#0d1528] px-4 py-3">
+      <p className="text-[10px] uppercase tracking-[0.22em] text-[#6e83a7]">{label}</p>
+      <p className="mt-2 text-[1.15rem] font-semibold text-[#f8fbff]">{value}</p>
     </div>
   );
 }
@@ -2032,12 +2061,12 @@ function PanelCard({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-[2rem] border border-[#3f2114]/10 bg-[#fffdf8]/88 p-5 shadow-[0_18px_50px_rgba(63,33,20,0.08)] backdrop-blur sm:p-6">
+    <section className="rounded-3xl border border-[#1c2a45] bg-[#0d1528] p-5 shadow-[0_18px_50px_rgba(2,8,23,0.28)] sm:p-6">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f3412]">{eyebrow}</p>
-          <h2 className="font-display mt-2 text-[1.55rem] leading-tight text-[#231815]">{title}</h2>
-          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[#6f5a4d]">{description}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6e83a7]">{eyebrow}</p>
+          <h2 className="font-display mt-2 text-[1.35rem] leading-tight text-[#f8fbff]">{title}</h2>
+          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[#7f8ea8]">{description}</p>
         </div>
 
         {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
@@ -2063,7 +2092,7 @@ function Field({
 }) {
   return (
     <label className="space-y-2">
-      <span className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#5f4336]">
+      <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f8ea8]">
         {icon}
         {label}
       </span>
@@ -2071,7 +2100,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-12 w-full rounded-2xl border border-[#3f2114]/12 bg-white px-4 text-sm text-[#231815] outline-none transition placeholder:text-[#8e7a6d] focus:border-[#d1582a]/35 focus:ring-4 focus:ring-[#d1582a]/10"
+        className="h-12 w-full rounded-xl border border-[#1f2d4b] bg-[#182235] px-4 text-sm text-[#e6eefc] outline-none transition placeholder:text-[#637795] focus:border-[#3b82f6] focus:ring-4 focus:ring-[#1d4ed8]/20"
       />
     </label>
   );
@@ -2090,7 +2119,7 @@ function LongField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#5f4336]">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f8ea8]">
         {label}
       </span>
       <textarea
@@ -2098,7 +2127,7 @@ function LongField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         rows={4}
-        className="w-full rounded-[1.4rem] border border-[#3f2114]/12 bg-white px-4 py-3 text-sm leading-6 text-[#231815] outline-none transition placeholder:text-[#8e7a6d] focus:border-[#d1582a]/35 focus:ring-4 focus:ring-[#d1582a]/10"
+        className="w-full rounded-xl border border-[#1f2d4b] bg-[#182235] px-4 py-3 text-sm leading-6 text-[#e6eefc] outline-none transition placeholder:text-[#637795] focus:border-[#3b82f6] focus:ring-4 focus:ring-[#1d4ed8]/20"
       />
     </label>
   );
@@ -2118,7 +2147,7 @@ function PrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-full bg-[#d1582a] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(209,88,42,0.26)] transition hover:bg-[#b7491f] disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-xl bg-[#2d5ca8] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(29,78,216,0.24)] transition hover:bg-[#3567b9] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>
@@ -2136,7 +2165,7 @@ function GhostButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-full border border-[#3f2114]/12 px-4 py-2.5 text-[13px] font-medium text-[#5f4336] transition hover:border-[#d1582a]/30 hover:text-[#d1582a]"
+      className="inline-flex items-center gap-2 rounded-xl border border-[#1f2d4b] bg-[#111a2d] px-4 py-2.5 text-[13px] font-medium text-[#c3d1e7] transition hover:border-[#315aa4] hover:text-[#ffffff]"
     >
       {children}
     </button>
@@ -2153,10 +2182,10 @@ function HintCard({
   description: string;
 }) {
   return (
-    <div className="rounded-[1.6rem] border border-[#3f2114]/10 bg-white/85 p-5">
-      <div className="inline-flex rounded-full bg-[#f5efe6] p-3 text-[#8f3412]">{icon}</div>
-      <h3 className="font-display mt-4 text-[1.18rem] leading-tight text-[#231815]">{title}</h3>
-      <p className="mt-3 text-[13px] leading-6 text-[#6f5a4d]">{description}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-5">
+      <div className="inline-flex rounded-xl bg-[#152340] p-3 text-[#6ca4ff]">{icon}</div>
+      <h3 className="font-display mt-4 text-[1.05rem] leading-tight text-[#f8fbff]">{title}</h3>
+      <p className="mt-3 text-[13px] leading-6 text-[#7f8ea8]">{description}</p>
     </div>
   );
 }
@@ -2169,8 +2198,8 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-[#3f2114]/18 bg-white/70 px-4 py-5 text-sm leading-6 text-[#6f5a4d]">
-      <p className="font-semibold text-[#231815]">{title}</p>
+    <div className="rounded-2xl border border-dashed border-[#24314e] bg-[#0b1426] px-4 py-5 text-sm leading-6 text-[#7f8ea8]">
+      <p className="font-semibold text-[#f8fbff]">{title}</p>
       <p className="mt-2">{description}</p>
     </div>
   );
@@ -2186,10 +2215,10 @@ function MetricCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-[1.3rem] border border-[#3f2114]/10 bg-white/90 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">{label}</p>
-      <p className="mt-2 text-base font-semibold text-[#231815]">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-[#6f5a4d]">{detail}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6e83a7]">{label}</p>
+      <p className="mt-2 text-base font-semibold text-[#f8fbff]">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-[#7f8ea8]">{detail}</p>
     </div>
   );
 }
@@ -2202,9 +2231,9 @@ function MiniInfoCard({
   value: string;
 }) {
   return (
-    <div className="rounded-[1.2rem] border border-[#3f2114]/10 bg-white/88 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">{label}</p>
-      <p className="mt-2 text-sm leading-6 text-[#5f4336]">{value}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6e83a7]">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-[#c0d0e7]">{value}</p>
     </div>
   );
 }
@@ -2219,10 +2248,10 @@ function SimpleListCard({
   items: string[];
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[#231815]">{title}</p>
-        <span className="rounded-full bg-[#f7efe4] px-3 py-1 text-xs font-semibold text-[#8f3412]">
+        <p className="text-sm font-semibold text-[#f8fbff]">{title}</p>
+        <span className="rounded-full bg-[#152340] px-3 py-1 text-xs font-semibold text-[#7db0ff]">
           {badge}
         </span>
       </div>
@@ -2231,13 +2260,13 @@ function SimpleListCard({
           items.map((item) => (
             <div
               key={`${title}-${item}`}
-              className="rounded-[1.1rem] border border-[#3f2114]/10 bg-[#fffaf5] px-4 py-3 text-sm leading-6 text-[#5f4336]"
+              className="rounded-xl border border-[#1b2945] bg-[#0b1426] px-4 py-3 text-sm leading-6 text-[#c0d0e7]"
             >
               {item}
             </div>
           ))
         ) : (
-          <p className="text-sm leading-6 text-[#6f5a4d]">No items yet.</p>
+          <p className="text-sm leading-6 text-[#7f8ea8]">No items yet.</p>
         )}
       </div>
     </div>
@@ -2254,10 +2283,10 @@ function IssueBucketCard({
   emptyMessage: string;
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[#231815]">{title}</p>
-        <span className="rounded-full bg-[#f7efe4] px-3 py-1 text-xs font-semibold text-[#8f3412]">
+        <p className="text-sm font-semibold text-[#f8fbff]">{title}</p>
+        <span className="rounded-full bg-[#152340] px-3 py-1 text-xs font-semibold text-[#7db0ff]">
           {issues.length}
         </span>
       </div>
@@ -2267,22 +2296,22 @@ function IssueBucketCard({
           issues.map((issue) => (
             <div
               key={`${title}-${issue.title}`}
-              className="rounded-[1.2rem] border border-[#3f2114]/10 bg-[#fffaf5] p-4"
+              className="rounded-xl border border-[#1b2945] bg-[#0b1426] p-4"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-[#231815]">{issue.title}</p>
+                <p className="text-sm font-semibold text-[#f8fbff]">{issue.title}</p>
                 <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]", toneClasses(issue.severity))}>
                   {issue.severity}
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-[#5f4336]">{issue.evidence}</p>
-              <div className="mt-3 rounded-xl bg-[#f7efe4] px-3 py-3 text-sm leading-6 text-[#5b4437]">
-                <span className="font-semibold text-[#231815]">Next action:</span> {issue.action}
+              <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{issue.evidence}</p>
+              <div className="mt-3 rounded-xl bg-[#152340] px-3 py-3 text-sm leading-6 text-[#bdd4ff]">
+                <span className="font-semibold text-[#f8fbff]">Next action:</span> {issue.action}
               </div>
             </div>
           ))
         ) : (
-          <p className="text-sm leading-6 text-[#6f5a4d]">{emptyMessage}</p>
+          <p className="text-sm leading-6 text-[#7f8ea8]">{emptyMessage}</p>
         )}
       </div>
     </div>
@@ -2297,42 +2326,42 @@ function PlanListCard({
   items: ActionPlanItem[];
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
-      <p className="text-sm font-semibold text-[#231815]">{title}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
+      <p className="text-sm font-semibold text-[#f8fbff]">{title}</p>
       <div className="mt-4 space-y-4">
         {items.length ? (
           items.map((item) => (
             <div
               key={`${title}-${item.title}`}
-              className="rounded-[1.2rem] border border-[#3f2114]/10 bg-[#fffaf5] p-4"
+              className="rounded-xl border border-[#1b2945] bg-[#0b1426] p-4"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-[#231815]">{item.title}</p>
+                <p className="text-sm font-semibold text-[#f8fbff]">{item.title}</p>
                 <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]", toneClasses(item.impact))}>
                   {item.impact} impact
                 </span>
-                <span className="rounded-full border border-[#3f2114]/12 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f5a4d]">
+                <span className="rounded-full border border-[#263757] bg-[#10192d] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8ea0bc]">
                   {item.effort}
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-[#5f4336]">{item.why}</p>
+              <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{item.why}</p>
               <div className="mt-3 space-y-2">
                 {item.steps.map((step) => (
                   <div
                     key={`${item.title}-${step}`}
-                    className="rounded-xl bg-[#f7efe4] px-3 py-3 text-sm leading-6 text-[#5b4437]"
+                    className="rounded-xl bg-[#152340] px-3 py-3 text-sm leading-6 text-[#bdd4ff]"
                   >
                     {step}
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-sm leading-6 text-[#6f5a4d]">
-                <span className="font-semibold text-[#231815]">Done when:</span> {item.doneWhen}
+              <p className="mt-3 text-sm leading-6 text-[#8ea0bc]">
+                <span className="font-semibold text-[#f8fbff]">Done when:</span> {item.doneWhen}
               </p>
             </div>
           ))
         ) : (
-          <p className="text-sm leading-6 text-[#6f5a4d]">No actions yet.</p>
+          <p className="text-sm leading-6 text-[#7f8ea8]">No actions yet.</p>
         )}
       </div>
     </div>
@@ -2347,21 +2376,21 @@ function OpportunityCard({
   onUse: () => void;
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-[#231815]">{opportunity.title}</p>
+        <p className="text-sm font-semibold text-[#f8fbff]">{opportunity.title}</p>
         <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]", toneClasses(opportunity.priority))}>
           {opportunity.priority}
         </span>
       </div>
-      <p className="mt-2 text-sm text-[#8f3412]">{opportunity.targetKeyword}</p>
-      <p className="mt-3 text-sm leading-6 text-[#5f4336]">{opportunity.reason}</p>
+      <p className="mt-2 text-sm text-[#7db0ff]">{opportunity.targetKeyword}</p>
+      <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{opportunity.reason}</p>
       <div className="mt-4 flex items-center justify-between gap-3">
-        <div className="text-xs uppercase tracking-[0.22em] text-[#6f5a4d]">{opportunity.pageType}</div>
+        <div className="text-xs uppercase tracking-[0.22em] text-[#7f8ea8]">{opportunity.pageType}</div>
         <button
           type="button"
           onClick={onUse}
-          className="rounded-full border border-[#d1582a]/25 bg-[#fff4ea] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#8f3412] transition hover:border-[#d1582a]/45"
+          className="rounded-lg border border-[#315aa4] bg-[#13213c] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ec1ff] transition hover:border-[#4b78ca]"
         >
           Use this idea
         </button>
@@ -2376,19 +2405,19 @@ function CompetitorCard({
   competitor: KeywordReport["competitors"][number];
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
-      <p className="text-sm font-semibold text-[#231815]">{competitor.domain}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
+      <p className="text-sm font-semibold text-[#f8fbff]">{competitor.domain}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-[#f7efe4] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f3412]">Shared kws</p>
-          <p className="mt-1 text-sm font-semibold text-[#231815]">{competitor.sharedKeywords}</p>
+        <div className="rounded-xl bg-[#152340] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">Shared kws</p>
+          <p className="mt-1 text-sm font-semibold text-[#f8fbff]">{competitor.sharedKeywords}</p>
         </div>
-        <div className="rounded-xl bg-[#f7efe4] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f3412]">Domain rating</p>
-          <p className="mt-1 text-sm font-semibold text-[#231815]">{competitor.domainRating ?? "n/a"}</p>
+        <div className="rounded-xl bg-[#152340] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">Domain rating</p>
+          <p className="mt-1 text-sm font-semibold text-[#f8fbff]">{competitor.domainRating ?? "n/a"}</p>
         </div>
       </div>
-      <p className="mt-3 text-[12px] leading-6 text-[#5f4336]">
+      <p className="mt-3 text-[12px] leading-6 text-[#c0d0e7]">
         Traffic {competitor.traffic ?? "n/a"} · Overlap share {competitor.share ?? "n/a"}%
       </p>
     </div>
@@ -2403,45 +2432,45 @@ function KeywordClusterCard({
   onUseKeyword: (keyword: string) => void;
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
-      <p className="text-sm font-semibold text-[#231815]">{cluster.label}</p>
-      <p className="mt-2 text-sm leading-6 text-[#6f5a4d]">{cluster.description}</p>
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
+      <p className="text-sm font-semibold text-[#f8fbff]">{cluster.label}</p>
+      <p className="mt-2 text-sm leading-6 text-[#7f8ea8]">{cluster.description}</p>
 
       <div className="mt-4 space-y-3">
         {cluster.suggestions.map((item) => (
           <div
             key={`${cluster.label}-${item.keyword}`}
-            className="rounded-[1.15rem] border border-[#3f2114]/10 bg-[#fffaf5] p-4"
+            className="rounded-xl border border-[#1b2945] bg-[#0b1426] p-4"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-[#231815]">{item.keyword}</p>
-              <span className="rounded-full border border-[#3f2114]/12 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6f5a4d]">
+              <p className="text-sm font-semibold text-[#f8fbff]">{item.keyword}</p>
+              <span className="rounded-full border border-[#263757] bg-[#10192d] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8ea0bc]">
                 {item.intent}
               </span>
-              <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+              <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
                 score {item.score}
               </span>
             </div>
-            <p className="mt-2 text-sm leading-6 text-[#5f4336]">{item.why}</p>
+            <p className="mt-2 text-sm leading-6 text-[#c0d0e7]">{item.why}</p>
             {item.volume || item.traffic || item.position || item.difficulty ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {typeof item.position === "number" ? (
-                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
                     Pos #{item.position}
                   </span>
                 ) : null}
                 {typeof item.volume === "number" ? (
-                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
                     Vol {item.volume}
                   </span>
                 ) : null}
                 {typeof item.traffic === "number" ? (
-                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
                     Traffic {item.traffic}
                   </span>
                 ) : null}
                 {typeof item.difficulty === "number" ? (
-                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
                     KD {item.difficulty}
                   </span>
                 ) : null}
@@ -2449,15 +2478,15 @@ function KeywordClusterCard({
             ) : null}
             <div className="mt-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8f3412]">{item.source}</p>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#7db0ff]">{item.source}</p>
                 {item.rankingUrl ? (
-                  <p className="truncate text-[11px] text-[#6f5a4d]">{item.rankingUrl}</p>
+                  <p className="truncate text-[11px] text-[#7f8ea8]">{item.rankingUrl}</p>
                 ) : null}
               </div>
               <button
                 type="button"
                 onClick={() => onUseKeyword(item.keyword)}
-                className="rounded-full border border-[#d1582a]/25 bg-[#fff4ea] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#8f3412] transition hover:border-[#d1582a]/45"
+                className="rounded-lg border border-[#315aa4] bg-[#13213c] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ec1ff] transition hover:border-[#4b78ca]"
               >
                 Use keyword
               </button>
