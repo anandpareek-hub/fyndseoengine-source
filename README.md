@@ -8,9 +8,19 @@ It no longer depends on:
 - Prisma or a database
 - team or multi-site management
 
-It now uses one runtime environment variable:
+Core runtime environment variable:
 
 - `OPENAI_API_KEY`
+
+Optional shared-storage environment variables:
+
+- `NEO4J_URI`
+- `NEO4J_USERNAME`
+- `NEO4J_PASSWORD`
+
+Optional search-intelligence environment variable:
+
+- `AHREFS_API_KEY`
 
 ## What it does
 
@@ -26,6 +36,9 @@ The app lets you save a project profile in the browser and work across multiple 
   - page-level HTML audit
   - current vs to-be markup suggestions
   - quick wins and major fixes
+- `Shared Workspace`
+  - save or load a project by workspace key when Neo4j is configured
+  - local-first fallback when graph storage is not connected
 - `Keyword Map`
   - local keyword clustering without a keyword API
   - commercial, comparison, supporting, and question-style terms
@@ -61,6 +74,7 @@ Optional future upgrades, not required for this version:
 - Google PageSpeed Insights API for lab performance data
 - Google Search Console for query and page performance
 - SERP / keyword APIs if you want real search-volume data instead of local heuristics
+- Ahrefs if you want competitor, backlink, and keyword intelligence beyond the local clustering logic
 
 ## Local development
 
@@ -84,6 +98,18 @@ npm run dev
 
 ## Vercel
 
-Use the standard Next.js settings and add only:
+Use the standard Next.js settings.
+
+Minimum env:
 
 - `OPENAI_API_KEY`
+
+If you want the shared team workspace on Vercel, also add:
+
+- `NEO4J_URI`
+- `NEO4J_USERNAME`
+- `NEO4J_PASSWORD`
+
+If you want Ahrefs-backed search intelligence later, add:
+
+- `AHREFS_API_KEY`

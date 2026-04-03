@@ -22,6 +22,15 @@ export type DraftRequest = WorkspaceProfile & {
   constraints: string;
 };
 
+export type SavedStrategyDraft = {
+  id: string;
+  title: string;
+  kind: DraftKind;
+  createdAt: string;
+  focusKeyword: string;
+  content: string;
+};
+
 export type Severity = "low" | "medium" | "high";
 
 export type AuditIssue = {
@@ -160,4 +169,15 @@ export type KeywordReport = {
   seedTerms: string[];
   quickWins: string[];
   clusters: KeywordCluster[];
+};
+
+export type SharedWorkspaceState = {
+  key: string;
+  profile: WorkspaceProfile;
+  history: SavedStrategyDraft[];
+  auditResult: TechnicalAuditResult | null;
+  actionPlan: AuditActionPlan | null;
+  keywordReport: KeywordReport | null;
+  pageDraft: GeneratedPageDraft | null;
+  updatedAt: string;
 };

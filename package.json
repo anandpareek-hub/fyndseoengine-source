@@ -17,6 +17,7 @@
     "lucide-react": "^0.577.0",
     "marked": "^17.0.4",
     "next": "16.1.6",
+    "neo4j-driver": "^5.28.1",
     "openai": "^6.27.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

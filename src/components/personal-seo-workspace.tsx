@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BookText,
   CheckCircle2,
+  Database,
   Copy,
   Download,
   FilePlus2,
@@ -14,6 +15,7 @@ import {
   Globe2,
   Hammer,
   History,
+  Link2,
   NotebookPen,
   RefreshCcw,
   Sparkles,
@@ -31,21 +33,14 @@ import type {
   KeywordCluster,
   KeywordReport,
   NewPageOpportunity,
+  SavedStrategyDraft,
   Severity,
+  SharedWorkspaceState,
   TechnicalAuditResult,
   WorkspaceProfile,
 } from "@/lib/studio-types";
 
 type WorkflowTab = "strategy" | "audit" | "keywords" | "actions" | "pages";
-
-type DraftHistoryItem = {
-  id: string;
-  title: string;
-  kind: DraftKind;
-  createdAt: string;
-  focusKeyword: string;
-  content: string;
-};
 
 type NewPageForm = {
   pageTitle: string;
@@ -187,13 +182,18 @@ export default function PersonalSeoWorkspace({
   const [kind, setKind] = useState<DraftKind>("strategy-snapshot");
   const [focusKeyword, setFocusKeyword] = useState("");
   const [constraints, setConstraints] = useState("");
-  const [activeDraft, setActiveDraft] = useState<DraftHistoryItem | null>(null);
-  const [history, setHistory] = useState<DraftHistoryItem[]>([]);
+  const [activeDraft, setActiveDraft] = useState<SavedStrategyDraft | null>(null);
+  const [history, setHistory] = useState<SavedStrategyDraft[]>([]);
   const [auditUrl, setAuditUrl] = useState("");
   const [auditResult, setAuditResult] = useState<TechnicalAuditResult | null>(null);
   const [actionPlan, setActionPlan] = useState<AuditActionPlan | null>(null);
   const [keywordSeed, setKeywordSeed] = useState("");
   const [keywordReport, setKeywordReport] = useState<KeywordReport | null>(null);
+  const [workspaceKey, setWorkspaceKey] = useState("");
+  const [workspaceStorage, setWorkspaceStorage] = useState<"local-only" | "neo4j" | "unknown">(
+    "unknown"
+  );
+  const [sharedLoading, setSharedLoading] = useState(false);
   const [pageForm, setPageForm] = useState<NewPageForm>(emptyNewPageForm);
   const [pageDraft, setPageDraft] = useState<GeneratedPageDraft | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
@@ -214,15 +214,18 @@ export default function PersonalSeoWorkspace({
       const savedKeywords = window.localStorage.getItem(KEYWORDS_STORAGE_KEY);
       const savedPageForm = window.localStorage.getItem(PAGE_FORM_STORAGE_KEY);
       const savedPageDraft = window.localStorage.getItem(PAGE_DRAFT_STORAGE_KEY);
+      const params = new URLSearchParams(window.location.search);
+      const sharedKey = params.get("project")?.trim() || "";
 
       if (savedProfile) {
         const parsedProfile = JSON.parse(savedProfile) as WorkspaceProfile;
         setProfile(parsedProfile);
         setAuditUrl(parsedProfile.websiteUrl || "");
+        setWorkspaceKey(sharedKey || createWorkspaceKey(parsedProfile));
       }
 
       if (savedHistory) {
-        const parsedHistory = JSON.parse(savedHistory) as DraftHistoryItem[];
+        const parsedHistory = JSON.parse(savedHistory) as SavedStrategyDraft[];
         setHistory(parsedHistory);
         setActiveDraft(parsedHistory[0] ?? null);
       }
@@ -248,12 +251,53 @@ export default function PersonalSeoWorkspace({
       if (savedPageDraft) {
         setPageDraft(JSON.parse(savedPageDraft) as GeneratedPageDraft);
       }
+
+      if (!savedProfile && sharedKey) {
+        setWorkspaceKey(sharedKey);
+      }
     } catch (error) {
       console.error("Failed to load local workspace state", error);
     } finally {
       setHydrated(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const sharedKey = params.get("project")?.trim() || "";
+
+    if (!sharedKey) {
+      return;
+    }
+
+    setSharedLoading(true);
+
+    void fetch(`/api/workspace?key=${encodeURIComponent(sharedKey)}`)
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          key?: string;
+          storage?: "local-only" | "neo4j";
+          workspace?: SharedWorkspaceState | null;
+        };
+
+        if (!response.ok) {
+          return;
+        }
+
+        setWorkspaceKey(data.key || sharedKey);
+        setWorkspaceStorage(data.storage || "unknown");
+
+        if (data.workspace) {
+          applyWorkspaceState(data.workspace);
+          toast.success("Shared workspace loaded");
+        }
+      })
+      .finally(() => {
+        setSharedLoading(false);
+      });
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -319,6 +363,122 @@ export default function PersonalSeoWorkspace({
     (actionPlan ? 1 : 0) +
     (pageDraft ? 1 : 0);
 
+  function buildWorkspaceState(nextKey?: string): SharedWorkspaceState {
+    const key = (nextKey || workspaceKey || createWorkspaceKey(profile)).trim() || "default-workspace";
+
+    return {
+      key,
+      profile,
+      history,
+      auditResult,
+      actionPlan,
+      keywordReport,
+      pageDraft,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function applyWorkspaceState(workspace: SharedWorkspaceState) {
+    setWorkspaceKey(workspace.key);
+    setProfile(workspace.profile);
+    setHistory(workspace.history || []);
+    setActiveDraft(workspace.history?.[0] ?? null);
+    setAuditResult(workspace.auditResult || null);
+    setActionPlan(workspace.actionPlan || null);
+    setKeywordReport(workspace.keywordReport || null);
+    setPageDraft(workspace.pageDraft || null);
+    setAuditUrl(workspace.auditResult?.url || workspace.profile.websiteUrl || "");
+  }
+
+  async function loadSharedWorkspace(rawKey?: string) {
+    const key = (rawKey || workspaceKey || createWorkspaceKey(profile)).trim();
+
+    if (!key) {
+      toast.error("Add a workspace key first.");
+      return;
+    }
+
+    setSharedLoading(true);
+
+    try {
+      const response = await fetch(`/api/workspace?key=${encodeURIComponent(key)}`);
+      const data = (await response.json()) as {
+        key?: string;
+        storage?: "local-only" | "neo4j";
+        workspace?: SharedWorkspaceState | null;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "The shared workspace could not be loaded.");
+      }
+
+      setWorkspaceKey(data.key || key);
+      setWorkspaceStorage(data.storage || "unknown");
+
+      if (data.workspace) {
+        applyWorkspaceState(data.workspace);
+        toast.success("Shared workspace loaded");
+      } else if (data.storage === "local-only") {
+        toast.message("Neo4j is not configured yet. Workspace stays local for now.");
+      } else {
+        toast.message("No shared workspace exists for this key yet.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "The shared workspace could not be loaded.";
+      toast.error(message);
+    } finally {
+      setSharedLoading(false);
+    }
+  }
+
+  async function saveSharedWorkspace() {
+    const state = buildWorkspaceState();
+
+    setSharedLoading(true);
+
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+      });
+
+      const data = (await response.json()) as {
+        key?: string;
+        storage?: "local-only" | "neo4j";
+        saved?: boolean;
+        workspace?: SharedWorkspaceState;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "The shared workspace could not be saved.");
+      }
+
+      setWorkspaceKey(data.key || state.key);
+      setWorkspaceStorage(data.storage || "unknown");
+
+      if (data.workspace) {
+        applyWorkspaceState(data.workspace);
+      }
+
+      if (data.saved) {
+        updateShareUrl(data.key || state.key);
+        toast.success("Workspace saved to Neo4j");
+      } else {
+        toast.message("Neo4j is not configured yet. Workspace stayed local.");
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "The shared workspace could not be saved.";
+      toast.error(message);
+    } finally {
+      setSharedLoading(false);
+    }
+  }
+
   async function handleGenerateStrategy() {
     setDraftLoading(true);
 
@@ -345,7 +505,7 @@ export default function PersonalSeoWorkspace({
         throw new Error(data.error || "The draft could not be generated.");
       }
 
-      const item: DraftHistoryItem = {
+      const item: SavedStrategyDraft = {
         id: crypto.randomUUID(),
         kind,
         title: data.title,
@@ -528,6 +688,24 @@ export default function PersonalSeoWorkspace({
     }
   }
 
+  function updateShareUrl(key: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("project", key);
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  async function copyShareLink() {
+    const key = (workspaceKey || createWorkspaceKey(profile)).trim();
+
+    if (!key) {
+      toast.error("Add a workspace key first.");
+      return;
+    }
+
+    updateShareUrl(key);
+    await copyText(window.location.href, "Share link copied");
+  }
+
   function downloadText(content: string, filename: string) {
     const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -566,6 +744,7 @@ export default function PersonalSeoWorkspace({
   function loadSample() {
     setProfile(sampleProfile);
     setAuditUrl(sampleProfile.websiteUrl);
+    setWorkspaceKey(createWorkspaceKey(sampleProfile));
     setKeywordSeed("running plan for beginners");
     setPageForm({
       pageTitle: "Half marathon coaching for beginners",
@@ -590,6 +769,8 @@ export default function PersonalSeoWorkspace({
     setKeywordReport(null);
     setPageForm(emptyNewPageForm);
     setPageDraft(null);
+    setWorkspaceKey("");
+    setWorkspaceStorage("unknown");
 
     window.localStorage.removeItem(PROFILE_STORAGE_KEY);
     window.localStorage.removeItem(HISTORY_STORAGE_KEY);
@@ -598,6 +779,9 @@ export default function PersonalSeoWorkspace({
     window.localStorage.removeItem(KEYWORDS_STORAGE_KEY);
     window.localStorage.removeItem(PAGE_FORM_STORAGE_KEY);
     window.localStorage.removeItem(PAGE_DRAFT_STORAGE_KEY);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("project");
+    window.history.replaceState({}, "", url.toString());
 
     toast.success("Local workspace cleared");
   }
@@ -621,7 +805,10 @@ export default function PersonalSeoWorkspace({
                   Personal SEO operating system
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#f5b08a]/25 bg-[#f5b08a]/10 px-3 py-1 text-xs font-medium text-[#ffd6c0]">
-                  Runtime env: OPENAI_API_KEY only
+                  Core env: OPENAI_API_KEY
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs font-medium text-white/72">
+                  Optional: Neo4j + AHREFS_API_KEY
                 </span>
               </div>
 
@@ -731,6 +918,48 @@ export default function PersonalSeoWorkspace({
                 onChange={(value) => setProfile((current) => ({ ...current, notes: value }))}
                 placeholder="Any guardrails, constraints, or business context the assistant should respect."
               />
+            </div>
+
+            <div className="mt-6 rounded-[1.5rem] border border-[#3f2114]/10 bg-white/82 p-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                    Shared workspace
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[#6f5a4d]">
+                    Use a stable key so the team can open the same project state once Neo4j is connected.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-[#3f2114]/12 bg-[#fff7ef] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5f4336]">
+                    Storage: {workspaceStorage === "unknown" ? "not checked" : workspaceStorage}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto]">
+                <Field
+                  label="Workspace key"
+                  icon={<Database className="size-4" />}
+                  value={workspaceKey}
+                  onChange={setWorkspaceKey}
+                  placeholder="northstar-running-notes"
+                />
+                <div className="flex flex-wrap gap-3 lg:justify-end">
+                  <GhostButton onClick={() => void loadSharedWorkspace()}>
+                    <Database className="size-4" />
+                    {sharedLoading ? "Loading..." : "Load shared"}
+                  </GhostButton>
+                  <GhostButton onClick={() => void saveSharedWorkspace()}>
+                    <Database className="size-4" />
+                    {sharedLoading ? "Saving..." : "Save shared"}
+                  </GhostButton>
+                  <GhostButton onClick={() => void copyShareLink()}>
+                    <Link2 className="size-4" />
+                    Copy link
+                  </GhostButton>
+                </div>
+              </div>
             </div>
           </motion.section>
 
@@ -2042,4 +2271,24 @@ function toTitleCase(value: string) {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function createWorkspaceKey(profile: Partial<WorkspaceProfile>) {
+  const fromUrl = profile.websiteUrl?.trim();
+
+  if (fromUrl) {
+    try {
+      const normalized = /^https?:\/\//i.test(fromUrl) ? fromUrl : `https://${fromUrl}`;
+      const host = new URL(normalized).hostname.replace(/^www\./, "");
+      return host.replace(/[^\w.-]/g, "-");
+    } catch {
+      // fall through to project name
+    }
+  }
+
+  return (profile.projectName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-");
 }
