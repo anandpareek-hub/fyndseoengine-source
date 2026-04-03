@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { generateDraft, type DraftKind, type DraftRequest } from "@/lib/openai";
+import { generateDraft } from "@/lib/openai";
+import type { DraftKind, DraftRequest } from "@/lib/studio-types";
 
 const VALID_KINDS = new Set<DraftKind>([
   "strategy-snapshot",
