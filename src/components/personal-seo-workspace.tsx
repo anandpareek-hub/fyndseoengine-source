@@ -158,7 +158,7 @@ const workflows: Array<{
     id: "keywords",
     label: "Keyword Map",
     eyebrow: "Expand",
-    description: "Generate local keyword clusters and page angles without an external keyword API.",
+    description: "Use Ahrefs-backed live opportunities when possible, with a local fallback that keeps the workflow moving.",
     icon: <Target className="size-4" />,
   },
   {
@@ -362,6 +362,49 @@ export default function PersonalSeoWorkspace({
     (keywordReport ? 1 : 0) +
     (actionPlan ? 1 : 0) +
     (pageDraft ? 1 : 0);
+  const keywordProvider = keywordReport?.provider || "local-fallback";
+  const keywordProviderLabel = keywordReport?.providerLabel || "Local keyword model";
+  const keywordProviderNote =
+    keywordReport?.providerNote ||
+    "The keyword map is currently using the local model. Add a website URL and a working Ahrefs key to enrich it with live search data.";
+  const keywordSiteMetrics = keywordReport?.siteMetrics || [];
+  const keywordCompetitors = keywordReport?.competitors || [];
+  const workflowStatuses: Record<WorkflowTab, string> = {
+    strategy: activeDraft ? "Draft ready" : history.length ? `${history.length} saved` : "Start here",
+    audit: auditResult ? `${auditResult.score}/100` : "Needs URL",
+    keywords: keywordReport ? keywordProviderLabel : "Build map",
+    actions: actionPlan ? `${actionPlan.quickWins.length + actionPlan.strategicFixes.length} actions` : "Need audit",
+    pages: pageDraft ? pageDraft.slug : "Create draft",
+  };
+  const operationsOverview = [
+    {
+      label: "Crawler",
+      value: "Open-source HTML pass",
+      detail: "Cheerio-backed technical inspection with robots and sitemap checks.",
+    },
+    {
+      label: "Intelligence",
+      value: keywordReport ? keywordProviderLabel : "Ahrefs when available",
+      detail: keywordReport
+        ? keywordProvider === "ahrefs"
+          ? "Live Ahrefs enrichment is active for the current keyword map."
+          : "The local fallback model is active and keeps the workflow available if Ahrefs fails."
+        : "Live Ahrefs enrichment with an automatic local fallback.",
+    },
+    {
+      label: "Storage",
+      value: workspaceStorage === "unknown" ? "Local-first" : workspaceStorage,
+      detail:
+        workspaceStorage === "neo4j"
+          ? "Shared workspace is connected."
+          : "Browser storage stays active even when Neo4j is unavailable.",
+    },
+    {
+      label: "Publishing flow",
+      value: "Audit -> actions -> pages",
+      detail: "Move from diagnosis into fix plans, keyword priorities, and ready-to-edit drafts.",
+    },
+  ];
 
   function buildWorkspaceState(nextKey?: string): SharedWorkspaceState {
     const key = (nextKey || workspaceKey || createWorkspaceKey(profile)).trim() || "default-workspace";
@@ -632,7 +675,11 @@ export default function PersonalSeoWorkspace({
       }
 
       setKeywordReport(data);
-      toast.success("Keyword map generated");
+      toast.success(
+        data.provider === "ahrefs"
+          ? "Keyword map generated with Ahrefs + local model"
+          : "Keyword map generated with the local fallback model"
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "The keyword map could not be generated.";
@@ -795,31 +842,31 @@ export default function PersonalSeoWorkspace({
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
-          className="rounded-[2rem] border border-[#3f2114]/10 bg-[#2a1d18] px-6 py-6 text-[#fff8f0] shadow-[0_30px_90px_rgba(33,18,12,0.22)] sm:px-8 sm:py-8"
+          className="rounded-[2rem] border border-[#3f2114]/10 bg-[#2a1d18] px-6 py-6 text-[#fff8f0] shadow-[0_30px_90px_rgba(33,18,12,0.22)] sm:px-7 sm:py-7"
         >
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/72">
                   <Sparkles className="size-3.5" />
-                  Personal SEO operating system
+                  SEO operations studio
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-[#f5b08a]/25 bg-[#f5b08a]/10 px-3 py-1 text-xs font-medium text-[#ffd6c0]">
-                  Core env: OPENAI_API_KEY
+                  OpenAI-powered drafts
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs font-medium text-white/72">
-                  Optional: Neo4j + AHREFS_API_KEY
+                  Ahrefs fallback built in
                 </span>
               </div>
 
-              <h1 className="font-display text-[2.4rem] leading-[1.05] tracking-tight sm:text-[3rem] lg:text-[3.55rem]">
-                Strategy drafts, technical audits, fix actions, and fresh page creation in one local-first studio.
+              <h1 className="font-display text-[2.1rem] leading-[1.04] tracking-tight sm:text-[2.6rem] lg:text-[3.05rem]">
+                One calmer workflow for technical audits, fix queues, live keyword intelligence, and page creation.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-                This keeps the personal setup lightweight while folding in the strongest workflow ideas from
-                the report studio: inspect a page, prioritize the fixes, and turn the gap into new content
-                you can actually ship.
+              <p className="mt-4 max-w-2xl text-[13px] leading-7 text-white/70 sm:text-[14px]">
+                The studio stays dependable for day-to-day team use: technical crawl signals stay open-source,
+                Ahrefs enriches keywords when available, and the keyword tab automatically falls back to the
+                local model if the external API is missing, throttled, or down.
               </p>
             </div>
 
@@ -837,6 +884,21 @@ export default function PersonalSeoWorkspace({
               route into this single personal workspace so old bookmarks keep working.
             </div>
           ) : null}
+
+          <div className="mt-6 grid gap-3 lg:grid-cols-4">
+            {operationsOverview.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-[1.3rem] border border-white/10 bg-white/6 px-4 py-4"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/48">
+                  {item.label}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-white">{item.value}</p>
+                <p className="mt-2 text-[12px] leading-6 text-white/64">{item.detail}</p>
+              </div>
+            ))}
+          </div>
         </motion.section>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
@@ -989,24 +1051,59 @@ export default function PersonalSeoWorkspace({
             </div>
 
             <div className="rounded-[1.5rem] border border-[#3f2114]/10 bg-white/90 p-3">
-              <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
-                {workflows.map((workflow) => (
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                {workflows.map((workflow, index) => (
                   <button
                     key={workflow.id}
                     type="button"
                     onClick={() => setActiveTab(workflow.id)}
                     className={cn(
-                      "rounded-[1rem] border px-3 py-3 text-left text-sm transition-all",
+                      "rounded-[1rem] border px-3 py-3 text-left transition-all",
                       activeTab === workflow.id
                         ? "border-[#d1582a]/35 bg-[#2a1d18] text-white shadow-[0_10px_22px_rgba(42,29,24,0.14)]"
                         : "border-[#3f2114]/10 bg-[#fffaf4] text-[#2a1d18] hover:border-[#d1582a]/22 hover:bg-white"
                     )}
                   >
-                    <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em]">
+                    <div className="flex items-center justify-between gap-3">
+                      <span
+                        className={cn(
+                          "inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold",
+                          activeTab === workflow.id
+                            ? "border-white/18 bg-white/8 text-white/72"
+                            : "border-[#3f2114]/10 bg-[#f7efe4] text-[#8f3412]"
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]",
+                          activeTab === workflow.id
+                            ? "bg-white/8 text-white/62"
+                            : "bg-[#fff4ea] text-[#8f3412]"
+                        )}
+                      >
+                        {workflowStatuses[workflow.id]}
+                      </span>
+                    </div>
+                    <div
+                      className={cn(
+                        "mt-3 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em]",
+                        activeTab === workflow.id ? "text-white/54" : "text-[#8f3412]"
+                      )}
+                    >
                       {workflow.icon}
                       {workflow.eyebrow}
                     </div>
                     <p className="mt-2 text-sm font-semibold">{workflow.label}</p>
+                    <p
+                      className={cn(
+                        "mt-2 text-[12px] leading-5",
+                        activeTab === workflow.id ? "text-white/68" : "text-[#6f5a4d]"
+                      )}
+                    >
+                      {workflow.description}
+                    </p>
                   </button>
                 ))}
               </div>
@@ -1024,14 +1121,15 @@ export default function PersonalSeoWorkspace({
               )}
               <MiniInfoCard
                 label="Recommended flow"
-                value="Audit the page, generate a keyword map, turn that into action items, then draft the next page."
+                value="Audit the page, review the live or fallback keyword signal, turn that into actions, then ship the next page draft."
               />
             </div>
 
             <div className="mt-6 rounded-[1.5rem] border border-[#3f2114]/10 bg-white/72 p-4 text-sm leading-6 text-[#6f5a4d]">
               Local storage keeps your profile, latest audit, fix plan, and drafts in this browser. Network
-              calls only happen when you run an audit or use your own OpenAI key for generation. Keyword
-              generation stays local and deterministic.
+              calls only happen when you run an audit, request OpenAI generation, or ask for Ahrefs-backed
+              keyword intelligence. If Ahrefs is unavailable, the keyword flow keeps running on the local
+              deterministic model.
             </div>
           </motion.section>
         </div>
@@ -1434,8 +1532,8 @@ export default function PersonalSeoWorkspace({
             >
               <PanelCard
                 eyebrow="Keyword Map"
-                title="Generate keyword clusters locally"
-                description="This map uses your project profile, audit snapshot, fix plan, and page context to create keyword ideas without a third-party keyword API."
+                title="Blend Ahrefs live intel with local fallback"
+                description="The keyword engine tries Ahrefs first when the key and website URL are available, then falls back to the local model so the workflow never blocks."
               >
                 <Field
                   label="Optional seed topic"
@@ -1455,22 +1553,22 @@ export default function PersonalSeoWorkspace({
                 <div className="mt-6 grid gap-3">
                   <MiniInfoCard
                     label="Source stack"
-                    value="Profile fields, latest audit snapshot, current action plan, and any generated page draft."
+                    value="Profile fields, audit snapshot, action plan, page draft context, plus Ahrefs organic keywords when the API is available."
                   />
                   <MiniInfoCard
                     label="Intent buckets"
                     value="Money keywords, comparisons, supporting content, and FAQ-style questions."
                   />
                   <MiniInfoCard
-                    label="Best next move"
-                    value="Push the best keyword directly into the page generator when a cluster looks promising."
+                    label="Failure mode"
+                    value="If Ahrefs is missing or errors, the tab stays usable with the local keyword model."
                   />
                 </div>
               </PanelCard>
 
               <PanelCard
                 eyebrow="Keyword Results"
-                title={keywordReport ? "Local keyword opportunities" : "Generate the keyword map"}
+                title={keywordReport ? keywordProviderLabel : "Generate the keyword map"}
                 description={
                   keywordReport
                     ? keywordReport.headline
@@ -1479,6 +1577,38 @@ export default function PersonalSeoWorkspace({
               >
                 {keywordReport ? (
                   <div className="space-y-6">
+                    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                            Intelligence mode
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-[#231815]">
+                            {keywordProviderLabel}
+                          </p>
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5f4336]">
+                            {keywordProviderNote}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-[#3f2114]/10 bg-[#fff4ea] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f3412]">
+                          {keywordProvider === "ahrefs" ? "Live provider" : "Fallback provider"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {keywordSiteMetrics.length ? (
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        {keywordSiteMetrics.map((item) => (
+                          <MetricCard
+                            key={`${item.label}-${item.value}`}
+                            label={item.label}
+                            value={item.value}
+                            detail={item.detail}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+
                     <div className="grid gap-4 md:grid-cols-2">
                       <SimpleListCard
                         title="Seed terms"
@@ -1491,6 +1621,24 @@ export default function PersonalSeoWorkspace({
                         items={keywordReport.quickWins}
                       />
                     </div>
+
+                    {keywordCompetitors.length ? (
+                      <div>
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8f3412]">
+                            Organic competitors
+                          </p>
+                          <p className="mt-1 text-sm text-[#6f5a4d]">
+                            Live overlap domains from Ahrefs that your team can inspect during content and internal-link reviews.
+                          </p>
+                        </div>
+                        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+                          {keywordCompetitors.map((item) => (
+                            <CompetitorCard key={item.domain} competitor={item} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
                     <div className="grid gap-4 xl:grid-cols-2">
                       {keywordReport.clusters.map((cluster) => (
@@ -1865,7 +2013,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[1.4rem] border border-white/10 bg-white/6 px-4 py-3">
       <p className="text-[11px] uppercase tracking-[0.22em] text-white/52">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-[1.35rem] font-semibold text-white">{value}</p>
     </div>
   );
 }
@@ -1888,8 +2036,8 @@ function PanelCard({
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f3412]">{eyebrow}</p>
-          <h2 className="font-display mt-2 text-[1.9rem] text-[#231815]">{title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6f5a4d]">{description}</p>
+          <h2 className="font-display mt-2 text-[1.55rem] leading-tight text-[#231815]">{title}</h2>
+          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[#6f5a4d]">{description}</p>
         </div>
 
         {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
@@ -1915,7 +2063,7 @@ function Field({
 }) {
   return (
     <label className="space-y-2">
-      <span className="inline-flex items-center gap-2 text-sm font-medium text-[#3f2114]">
+      <span className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#5f4336]">
         {icon}
         {label}
       </span>
@@ -1942,7 +2090,9 @@ function LongField({
 }) {
   return (
     <label className="space-y-2">
-      <span className="text-sm font-medium text-[#3f2114]">{label}</span>
+      <span className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#5f4336]">
+        {label}
+      </span>
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -1968,7 +2118,7 @@ function PrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-full bg-[#d1582a] px-5 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(209,88,42,0.26)] transition hover:bg-[#b7491f] disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-full bg-[#d1582a] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(209,88,42,0.26)] transition hover:bg-[#b7491f] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>
@@ -1986,7 +2136,7 @@ function GhostButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-full border border-[#3f2114]/12 px-4 py-2.5 text-sm font-medium text-[#5f4336] transition hover:border-[#d1582a]/30 hover:text-[#d1582a]"
+      className="inline-flex items-center gap-2 rounded-full border border-[#3f2114]/12 px-4 py-2.5 text-[13px] font-medium text-[#5f4336] transition hover:border-[#d1582a]/30 hover:text-[#d1582a]"
     >
       {children}
     </button>
@@ -2005,8 +2155,8 @@ function HintCard({
   return (
     <div className="rounded-[1.6rem] border border-[#3f2114]/10 bg-white/85 p-5">
       <div className="inline-flex rounded-full bg-[#f5efe6] p-3 text-[#8f3412]">{icon}</div>
-      <h3 className="font-display mt-4 text-[1.45rem] text-[#231815]">{title}</h3>
-      <p className="mt-3 text-sm leading-6 text-[#6f5a4d]">{description}</p>
+      <h3 className="font-display mt-4 text-[1.18rem] leading-tight text-[#231815]">{title}</h3>
+      <p className="mt-3 text-[13px] leading-6 text-[#6f5a4d]">{description}</p>
     </div>
   );
 }
@@ -2220,6 +2370,31 @@ function OpportunityCard({
   );
 }
 
+function CompetitorCard({
+  competitor,
+}: {
+  competitor: KeywordReport["competitors"][number];
+}) {
+  return (
+    <div className="rounded-[1.4rem] border border-[#3f2114]/10 bg-white/90 p-4">
+      <p className="text-sm font-semibold text-[#231815]">{competitor.domain}</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-[#f7efe4] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f3412]">Shared kws</p>
+          <p className="mt-1 text-sm font-semibold text-[#231815]">{competitor.sharedKeywords}</p>
+        </div>
+        <div className="rounded-xl bg-[#f7efe4] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8f3412]">Domain rating</p>
+          <p className="mt-1 text-sm font-semibold text-[#231815]">{competitor.domainRating ?? "n/a"}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-[12px] leading-6 text-[#5f4336]">
+        Traffic {competitor.traffic ?? "n/a"} · Overlap share {competitor.share ?? "n/a"}%
+      </p>
+    </div>
+  );
+}
+
 function KeywordClusterCard({
   cluster,
   onUseKeyword,
@@ -2248,8 +2423,37 @@ function KeywordClusterCard({
               </span>
             </div>
             <p className="mt-2 text-sm leading-6 text-[#5f4336]">{item.why}</p>
+            {item.volume || item.traffic || item.position || item.difficulty ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {typeof item.position === "number" ? (
+                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                    Pos #{item.position}
+                  </span>
+                ) : null}
+                {typeof item.volume === "number" ? (
+                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                    Vol {item.volume}
+                  </span>
+                ) : null}
+                {typeof item.traffic === "number" ? (
+                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                    Traffic {item.traffic}
+                  </span>
+                ) : null}
+                {typeof item.difficulty === "number" ? (
+                  <span className="rounded-full bg-[#f7efe4] px-2.5 py-1 text-[11px] font-semibold text-[#8f3412]">
+                    KD {item.difficulty}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-[#8f3412]">{item.source}</p>
+              <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.22em] text-[#8f3412]">{item.source}</p>
+                {item.rankingUrl ? (
+                  <p className="truncate text-[11px] text-[#6f5a4d]">{item.rankingUrl}</p>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => onUseKeyword(item.keyword)}

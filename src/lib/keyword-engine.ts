@@ -246,5 +246,11 @@ export function generateKeywordReport(input: KeywordEngineInput): KeywordReport 
     seedTerms: unique([...phrases.slice(0, 8), ...terms.slice(0, 6)]).slice(0, 10),
     quickWins,
     clusters: [commercial, comparisons, informational, questions],
+    provider: "local-fallback",
+    providerLabel: "Local keyword model",
+    providerNote:
+      "This map was generated from the project profile, audit context, action plan, and current page draft. It stays available even if external search APIs are unavailable.",
+    siteMetrics: [],
+    competitors: [],
   };
 }

@@ -40,7 +40,8 @@ The app lets you save a project profile in the browser and work across multiple 
   - save or load a project by workspace key when Neo4j is configured
   - local-first fallback when graph storage is not connected
 - `Keyword Map`
-  - local keyword clustering without a keyword API
+  - Ahrefs-backed live keyword and competitor intelligence when available
+  - deterministic local fallback when Ahrefs is missing or unavailable
   - commercial, comparison, supporting, and question-style terms
 - `Fix Actions`
   - prioritized implementation backlog
@@ -56,6 +57,7 @@ By default:
 
 - technical audit uses open-source HTML parsing with `cheerio`
 - keyword generation uses deterministic local logic
+- Ahrefs Site Explorer can enrich keyword and competitor insight when `AHREFS_API_KEY` is present
 - markdown preview uses `marked`
 - slug generation uses `slugify`
 
@@ -110,6 +112,6 @@ If you want the shared team workspace on Vercel, also add:
 - `NEO4J_USERNAME`
 - `NEO4J_PASSWORD`
 
-If you want Ahrefs-backed search intelligence later, add:
+If you want Ahrefs-backed search intelligence, add:
 
 - `AHREFS_API_KEY`

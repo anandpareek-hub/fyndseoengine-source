@@ -15,9 +15,9 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Fynd SEO Engine Personal Studio",
+  title: "Fynd SEO Operations Studio",
   description:
-    "A single-user SEO drafting workspace that turns your site context into strategy memos, briefs, and content ideas with OpenAI.",
+    "A lightweight SEO operations studio for technical audits, Ahrefs-backed keyword intelligence with local fallback, fix planning, and page creation.",
 };
 
 export default function RootLayout({

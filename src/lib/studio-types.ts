@@ -156,6 +156,11 @@ export type KeywordSuggestion = {
   score: number;
   source: string;
   why: string;
+  volume?: number | null;
+  traffic?: number | null;
+  difficulty?: number | null;
+  position?: number | null;
+  rankingUrl?: string | null;
 };
 
 export type KeywordCluster = {
@@ -164,11 +169,32 @@ export type KeywordCluster = {
   suggestions: KeywordSuggestion[];
 };
 
+export type KeywordMetric = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+export type KeywordCompetitor = {
+  domain: string;
+  domainRating: number | null;
+  sharedKeywords: number;
+  traffic: number | null;
+  share: number | null;
+};
+
+export type KeywordProvider = "ahrefs" | "local-fallback";
+
 export type KeywordReport = {
   headline: string;
   seedTerms: string[];
   quickWins: string[];
   clusters: KeywordCluster[];
+  provider: KeywordProvider;
+  providerLabel: string;
+  providerNote: string;
+  siteMetrics: KeywordMetric[];
+  competitors: KeywordCompetitor[];
 };
 
 export type SharedWorkspaceState = {
