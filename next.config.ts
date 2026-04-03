@@ -1,12 +1,10 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "15mb",
-    },
+  turbopack: {
+    root: path.join(__dirname),
   },
-  serverExternalPackages: ["pdf-parse", "mammoth"],
 };
 
 export default nextConfig;

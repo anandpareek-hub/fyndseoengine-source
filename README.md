@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fynd SEO Engine Personal Studio
 
-## Getting Started
+This repo has been simplified into a single-user SEO drafting workspace.
 
-First, run the development server:
+It no longer depends on:
+
+- authentication
+- Prisma or a database
+- team or multi-site management
+
+It now uses one runtime environment variable:
+
+- `OPENAI_API_KEY`
+
+## What it does
+
+The app lets you save a project profile in the browser and generate:
+
+- strategy snapshots
+- content calendars
+- article briefs
+- homepage refresh drafts
+- content audits
+
+Drafts are stored in local browser storage for personal use and can be copied or downloaded as markdown.
+
+## Local development
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Add your environment variable:
+
+```bash
+OPENAI_API_KEY=your_key_here
+```
+
+3. Start the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Use the standard Next.js settings and add only:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `OPENAI_API_KEY`

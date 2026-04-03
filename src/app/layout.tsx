@@ -1,24 +1,23 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import AuthSessionProvider from "@/components/SessionProvider";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Fraunces, Manrope } from "next/font/google";
 import { Toaster } from "sonner";
+import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Webflow SEO Engine - AI-Powered SEO Content Engine",
+  title: "Fynd SEO Engine Personal Studio",
   description:
-    "Autonomous AI agent that plans, writes, and publishes SEO content to Webflow. From goal to published article — fully automated.",
+    "A single-user SEO drafting workspace that turns your site context into strategy memos, briefs, and content ideas with OpenAI.",
 };
 
 export default function RootLayout({
@@ -28,11 +27,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased bg-white text-gray-900 min-h-screen`}>
-        <AuthSessionProvider>
-          <TooltipProvider>{children}</TooltipProvider>
-          <Toaster richColors position="top-right" />
-        </AuthSessionProvider>
+      <body
+        className={`${manrope.variable} ${fraunces.variable} min-h-screen bg-[#f5efe6] font-sans text-[#231815] antialiased`}
+      >
+        {children}
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );
