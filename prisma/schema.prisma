@@ -1,0 +1,518 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  sites       Site[]
+  goals       Goal[]
+  articles    Article[]
+  activities  Activity[]
+  siteAccess  SiteAccess[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Site {
+  id             String  @id @default(cuid())
+  userId         String
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domain         String
+  name           String?
+  description    String? @db.Text
+  brandVoice     String? @db.Text
+  targetAudience String?
+  industry       String?
+
+  // Webflow credentials
+  webflowApiToken        String?
+  webflowSiteId          String?
+  webflowSiteName        String?
+  webflowDomain          String?
+  webflowBlogCollectionId String?
+  webflowPageCollectionId String?
+  webflowFieldMapping    Json?
+
+  // API keys (per-site, user-configurable)
+  openaiApiKey      String?
+  dataForSeoLogin   String?
+  dataForSeoPassword String?
+  anthropicApiKey    String?
+  serperApiKey      String?
+
+  // AI-extracted data
+  products    String[] @default([])
+  competitors String[] @default([])
+  scanData    Json?
+  sitemapUrls Json?
+  sitemapFetchedAt DateTime?
+
+  // SEO Intent & Strategy
+  seoGoalType        String?
+  businessModel      String?
+  primarySeoGoal     String?   @db.Text
+  targetRegions      String[]  @default([])
+  monthlyArticleTarget Int?
+  contentTone        String?
+  topicsOfInterest   String[]  @default([])
+
+  // Optimization settings
+  autoOptimize           Boolean @default(true)
+  minorChangeAutoPublish Boolean @default(true)
+  majorChangeThreshold   Int     @default(500)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goals          Goal[]
+  articles       Article[]
+  monitoredPages MonitoredPage[]
+  seoAudits      SeoAudit[]
+  pageAudits     PageAudit[]
+  siteAccess     SiteAccess[]
+  knowledgeAssets KnowledgeAsset[]
+  manualTopics    ManualTopic[]
+
+  @@index([userId])
+}
+
+model Goal {
+  id          String  @id @default(cuid())
+  siteId      String
+  site        Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String? @db.Text
+  targetMetric String?
+  targetValue  String?
+  status      String  @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  plan Plan?
+
+  @@index([siteId])
+  @@index([userId])
+}
+
+model Plan {
+  id             String  @id @default(cuid())
+  goalId         String  @unique
+  goal           Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  strategy       String  @db.Text
+  topicClusters  Json?
+  keywordData    Json?
+  totalTasks     Int     @default(0)
+  completedTasks Int     @default(0)
+  status         String  @default("draft")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tasks PlanTask[]
+}
+
+model PlanTask {
+  id                String   @id @default(cuid())
+  planId            String
+  plan              Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  title             String
+  slug              String?
+  targetKeyword     String
+  secondaryKeywords String[] @default([])
+  contentType       String   @default("blog")
+  cluster           String?
+  brief             String?  @db.Text
+  priority          Int      @default(0)
+  scheduledDate     DateTime?
+  status            String   @default("pending")
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  article Article?
+
+  @@index([planId, status])
+  @@index([priority])
+}
+
+model Article {
+  id              String    @id @default(cuid())
+  planTaskId      String?   @unique
+  planTask        PlanTask? @relation(fields: [planTaskId], references: [id], onDelete: SetNull)
+  siteId          String
+  site            Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  slug            String
+  metaTitle       String?
+  metaDescription String?   @db.Text
+  content         String    @db.Text
+  contentMarkdown String?   @db.Text
+  wordCount       Int       @default(0)
+  sections        Json?
+  faqItems        Json?
+  keywords        String[]  @default([])
+  featureImage    String?
+  status          String    @default("draft")
+  rejectionReason String?   @db.Text
+  revisionNotes   String?   @db.Text
+  webflowBlogItemId  String?
+  webflowPageItemId  String?
+  publishedUrl    String?
+  publishedAt     DateTime?
+  // QA Pipeline
+  qaScore         Int?
+  qaPassed        Boolean?
+  qaResult        Json?
+  pipelineLog     Json?
+  pipelineAttempts Int      @default(0)
+
+  lastOptimizedAt DateTime?
+  optimizationScore Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  revisions         ArticleRevision[]
+  publishLog        PublishLog[]
+  performance       ArticlePerformance[]
+  metaTitleTests    MetaTitleTest[]
+  marketResearch    MarketResearch[]
+  optimizationTasks OptimizationTask[]
+
+  @@index([siteId, status])
+  @@index([planTaskId])
+}
+
+model ArticleRevision {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  version   Int
+  content   String   @db.Text
+  metadata  Json?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([articleId])
+}
+
+model PublishLog {
+  id           String   @id @default(cuid())
+  articleId    String
+  article      Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  action       String
+  response     Json?
+  success      Boolean
+  errorMsg     String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([articleId])
+}
+
+model ArticlePerformance {
+  id              String   @id @default(cuid())
+  articleId       String
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  week            DateTime
+  targetKeyword   String
+  position        Float?
+  serpFeatures    Json?
+  trafficEstimate Int?
+  keywordDifficulty Int?
+  competitorCount Int?
+  topCompetitors  Json?
+  createdAt       DateTime @default(now())
+
+  @@index([articleId, week])
+}
+
+model MetaTitleTest {
+  id                 String    @id @default(cuid())
+  articleId          String
+  article            Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  status             String    @default("running")
+  variants           Json
+  activeVariantIndex Int       @default(0)
+  rotateEveryDays    Int       @default(14)
+  lastRotatedAt      DateTime?
+  winnerIndex        Int?
+  minTestDays        Int       @default(14)
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  @@index([articleId])
+}
+
+model MarketResearch {
+  id                 String   @id @default(cuid())
+  articleId          String
+  article            Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  competitorInsights Json?
+  contentGaps        Json?
+  trendingTopics     Json?
+  newPAAQuestions     Json?
+  freshnessIssues    Json?
+  overallAssessment  String?  @db.Text
+  createdAt          DateTime @default(now())
+
+  @@index([articleId])
+}
+
+model OptimizationTask {
+  id             String    @id @default(cuid())
+  articleId      String
+  article        Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  type           String
+  title          String
+  suggestion     String    @db.Text
+  changeSize     String
+  priority       Int       @default(0)
+  status         String    @default("pending")
+  appliedContent String?   @db.Text
+  createdAt      DateTime  @default(now())
+  appliedAt      DateTime?
+
+  @@index([articleId])
+  @@index([status, changeSize])
+}
+
+model MonitoredPage {
+  id              String   @id @default(cuid())
+  siteId          String
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  url             String
+  pageType        String   @default("custom")
+  title           String?
+  metaTitle       String?
+  metaDescription String?  @db.Text
+  targetKeywords  String[] @default([])
+  currentPosition Float?
+  lastCheckedAt   DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  performance MonitoredPagePerformance[]
+  optimizationTasks PageOptimizationTask[]
+
+  @@index([siteId])
+  @@unique([siteId, url])
+}
+
+model MonitoredPagePerformance {
+  id              String   @id @default(cuid())
+  pageId          String
+  page            MonitoredPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  week            DateTime
+  keyword         String
+  position        Float?
+  serpFeatures    Json?
+  topCompetitors  Json?
+  createdAt       DateTime @default(now())
+
+  @@index([pageId, week])
+}
+
+model PageOptimizationTask {
+  id             String    @id @default(cuid())
+  pageId         String
+  page           MonitoredPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type           String
+  title          String
+  suggestion     String    @db.Text
+  currentValue   String?   @db.Text
+  proposedValue  String?   @db.Text
+  priority       Int       @default(0)
+  status         String    @default("pending")
+  appliedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([pageId])
+  @@index([status])
+}
+
+model SeoAudit {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  status    String   @default("running")
+  phase     String   @default("starting")
+
+  domainOverview    Json?
+  rankedKeywords    Json?
+  quickWins         Json?
+  topPages          Json?
+
+  competitors       Json?
+  contentGaps       Json?
+  competitorTraffic Json?
+
+  keywordSuggestions Json?
+  peopleAlsoAsk      Json?
+  autocompleteSuggestions Json?
+  relatedSearches    Json?
+
+  serpAnalysis       Json?
+
+  technicalAudit     Json?
+  lighthouseScores   Json?
+
+  backlinkSummary    Json?
+  anchorDistribution Json?
+  topBacklinks       Json?
+
+  healthScore        Int?
+  executiveSummary   String?    @db.Text
+  quickWinActions    Json?
+  contentStrategy    Json?
+
+  customerSearchBehavior Json?
+
+  siteArchitecture    Json?
+  topicalMap          Json?
+  blogCalendar        Json?
+  competitivePlaybook Json?
+  technicalRoadmap    Json?
+  linkBuildingPlan    Json?
+
+  errorMessage       String?    @db.Text
+  costEstimate       Float?
+  createdAt          DateTime   @default(now())
+  completedAt        DateTime?
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model PageAudit {
+  id          String   @id @default(cuid())
+  siteId      String
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  status      String   @default("running")
+  totalPages  Int      @default(0)
+  scannedPages Int     @default(0)
+  score       Int?
+  summary     Json?
+  pages       Json?
+  errorMessage String? @db.Text
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model SiteAccess {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  role      String   @default("editor")
+  invitedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([siteId, email])
+  @@index([userId])
+  @@index([email])
+  @@index([siteId])
+}
+
+model KnowledgeAsset {
+  id            String   @id @default(cuid())
+  siteId        String
+  site          Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileType      String   // pdf, docx, txt, csv, md
+  fileSize      Int      // bytes
+  extractedText String   @db.Text
+  summary       String?  @db.Text  // AI-generated summary
+  tags          String[] @default([])
+  status        String   @default("ready") // processing, ready, failed
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model ManualTopic {
+  id        String   @id @default(cuid())
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  title     String
+  keyword   String
+  status    String   @default("pending") // pending, generating, done, failed
+  articleId String?  // link to generated article
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([status])
+}
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
