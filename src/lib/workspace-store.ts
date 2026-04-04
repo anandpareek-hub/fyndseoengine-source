@@ -1,3 +1,4 @@
+import neo4j from "neo4j-driver";
 import slugify from "slugify";
 import { getDriver, getNeo4jUri, hasNeo4jConfig } from "@/lib/neo4j";
 import { compareSiteSnapshots, crawlSiteSnapshot } from "@/lib/site-crawler";
@@ -40,6 +41,10 @@ type WorkspaceTarget = {
   projectName: string;
   websiteUrl: string;
 };
+
+function toNeo4jInt(value: number) {
+  return neo4j.int(Math.trunc(value));
+}
 
 export function deriveWorkspaceKey(input: {
   key?: string;
@@ -248,7 +253,7 @@ async function loadLatestSnapshots(key: string, limit = 2): Promise<SiteSnapshot
       ORDER BY s.generatedAtEpoch DESC
       LIMIT $limit
       `,
-      { key, limit }
+      { key, limit: toNeo4jInt(limit) }
     );
 
     return result.records
@@ -294,9 +299,9 @@ async function saveSiteSnapshot(key: string, projectName: string, snapshot: Site
         projectName,
         websiteUrl: snapshot.websiteUrl,
         generatedAt: snapshot.generatedAt,
-        generatedAtEpoch: new Date(snapshot.generatedAt).getTime(),
+        generatedAtEpoch: toNeo4jInt(new Date(snapshot.generatedAt).getTime()),
         snapshotId: snapshot.snapshotId,
-        pageCount: snapshot.pages.length,
+        pageCount: toNeo4jInt(snapshot.pages.length),
         snapshotJson: JSON.stringify(snapshot),
       }
     );
