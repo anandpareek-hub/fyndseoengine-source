@@ -1,6 +1,6 @@
 # SEO - Growth
 
-This repo has been simplified into a single-user SEO workspace.
+This repo is a dark-mode SEO workspace for a small team or operator stack.
 
 It no longer depends on:
 
@@ -17,6 +17,10 @@ Optional shared-storage environment variables:
 - `NEO4J_URI`
 - `NEO4J_USERNAME`
 - `NEO4J_PASSWORD`
+
+Optional cron-protection environment variable:
+
+- `CRON_SECRET`
 
 Optional search-intelligence environment variable:
 
@@ -36,6 +40,10 @@ The app lets you save a project profile in the browser and work across multiple 
   - page-level HTML audit
   - current vs to-be markup suggestions
   - quick wins and major fixes
+- `Insights`
+  - first-run baseline snapshot stored in Neo4j
+  - daily snapshot refresh via Vercel cron
+  - what-changed reporting for new pages, removals, title/meta updates, content shifts, and warning signals
 - `Shared Workspace`
   - save or load a project by workspace key when Neo4j is configured
   - local-first fallback when graph storage is not connected
@@ -55,7 +63,8 @@ Drafts and the latest audit state are stored in local browser storage for person
 
 By default:
 
-- technical audit uses open-source HTML parsing with `cheerio`
+- technical audit and site snapshots use open-source parsing with `node-html-parser`
+- sitemap discovery uses `fast-xml-parser`
 - keyword generation uses deterministic local logic
 - Ahrefs Site Explorer can enrich keyword and competitor insight when `AHREFS_API_KEY` is present
 - markdown preview uses `marked`
@@ -111,6 +120,10 @@ If you want the shared team workspace on Vercel, also add:
 - `NEO4J_URI`
 - `NEO4J_USERNAME`
 - `NEO4J_PASSWORD`
+
+If you want the daily snapshot refresh endpoint protected, also add:
+
+- `CRON_SECRET`
 
 If you want Ahrefs-backed search intelligence, add:
 

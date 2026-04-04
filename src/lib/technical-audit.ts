@@ -1,28 +1,12 @@
-import * as cheerio from "cheerio";
 import type {
   AuditIssue,
   AuditMetrics,
+  AuditSnapshot,
   HtmlEvidence,
   Severity,
-  AuditSnapshot,
   TechnicalAuditResult,
 } from "@/lib/studio-types";
-
-const USER_AGENT =
-  "Mozilla/5.0 (compatible; FyndSeoEngineBot/1.0; +https://github.com/anandpareek-hub/fyndseoengine-source)";
-
-function normalizeUrl(rawUrl: string) {
-  const trimmed = rawUrl.trim();
-
-  if (!trimmed) {
-    throw new Error("Enter a URL to audit.");
-  }
-
-  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(withProtocol);
-
-  return url.toString();
-}
+import { fetchHtmlPage, inspectInfra, inspectPageHtml, normalizeAuditUrl } from "@/lib/site-crawler";
 
 function clampHtml(value: string, max = 220) {
   const text = value.replace(/\s+/g, " ").trim();
@@ -51,50 +35,6 @@ function statusFromScore(score: number) {
   return "High priority";
 }
 
-async function inspectInfra(origin: string) {
-  const robotsUrl = new URL("/robots.txt", origin).toString();
-  let hasRobotsTxt = false;
-  let hasSitemap = false;
-  let sitemapCandidate = new URL("/sitemap.xml", origin).toString();
-
-  try {
-    const robotsResponse = await fetch(robotsUrl, {
-      headers: { "User-Agent": USER_AGENT },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (robotsResponse.ok) {
-      hasRobotsTxt = true;
-      const body = await robotsResponse.text();
-      const sitemapLine = body
-        .split("\n")
-        .find((line) => line.trim().toLowerCase().startsWith("sitemap:"));
-
-      if (sitemapLine) {
-        sitemapCandidate = sitemapLine.split(":").slice(1).join(":").trim() || sitemapCandidate;
-      }
-    }
-  } catch {
-    hasRobotsTxt = false;
-  }
-
-  try {
-    const sitemapResponse = await fetch(sitemapCandidate, {
-      headers: { "User-Agent": USER_AGENT },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (sitemapResponse.ok) {
-      const text = await sitemapResponse.text();
-      hasSitemap = /<(urlset|sitemapindex)\b/i.test(text);
-    }
-  } catch {
-    hasSitemap = false;
-  }
-
-  return { hasRobotsTxt, hasSitemap };
-}
-
 function pushIssue(
   issues: TechnicalAuditResult["insights"],
   bucket: keyof TechnicalAuditResult["insights"],
@@ -118,151 +58,71 @@ function pushEvidence(
   });
 }
 
-function classifyLinks(hrefs: string[], origin: string) {
-  let internalLinks = 0;
-  let externalLinks = 0;
-
-  for (const href of hrefs) {
-    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
-      continue;
-    }
-
-    try {
-      const parsed = new URL(href, origin);
-      if (parsed.origin === origin) {
-        internalLinks += 1;
-      } else {
-        externalLinks += 1;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  return { internalLinks, externalLinks };
-}
-
 export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditResult> {
-  const normalizedUrl = normalizeUrl(rawUrl);
-  const response = await fetch(normalizedUrl, {
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept: "text/html,application/xhtml+xml",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(20000),
-  });
-
-  const html = await response.text();
-  const finalUrl = response.url || normalizedUrl;
+  const normalizedUrl = normalizeAuditUrl(rawUrl);
+  const fetched = await fetchHtmlPage(normalizedUrl);
+  const finalUrl = fetched.finalUrl || normalizedUrl;
   const finalUrlObject = new URL(finalUrl);
   const origin = finalUrlObject.origin;
-  const $ = cheerio.load(html);
+  const inspection = inspectPageHtml(fetched.html, finalUrl);
   const insights: TechnicalAuditResult["insights"] = {
     technicalSeo: [],
     pagePerformance: [],
     contentQuality: [],
   };
   const htmlEvidence: HtmlEvidence[] = [];
-
-  const title = $("title").first().text().trim();
-  const metaDescription =
-    $('meta[name="description"]').attr("content")?.trim() ||
-    $('meta[property="og:description"]').attr("content")?.trim() ||
-    "";
-  const canonical = $('link[rel="canonical"]').attr("href")?.trim() || "";
-  const robotsMeta = $('meta[name="robots"]').attr("content")?.trim().toLowerCase() || "";
-  const h1Count = $("h1").length;
-  const h2Count = $("h2").length;
-  const paragraphCount = $("p")
-    .toArray()
-    .map((node) => $(node).text().trim())
-    .filter((text) => text.length > 24).length;
-  const wordCount = $("body")
-    .text()
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean).length;
-  const imageNodes = $("img").toArray();
-  const imagesMissingAlt = imageNodes.filter((node) => $(node).attr("alt") == null).length;
-  const hrefs = $("a[href]")
-    .map((_, node) => $(node).attr("href") || "")
-    .get();
-  const { internalLinks, externalLinks } = classifyLinks(hrefs, origin);
-  const scripts = $("script").length;
-  const stylesheets = $('link[rel="stylesheet"]').length;
-  const domNodes = $("body *").length;
-  const structuredDataBlocks = $('script[type="application/ld+json"]').length;
-  const hasSchema = structuredDataBlocks > 0;
-  const hasViewport = $('meta[name="viewport"]').length > 0;
-  const hreflangCount = $('link[rel="alternate"][hreflang]').length;
-  const hasOpenGraph =
-    $('meta[property="og:title"]').length > 0 &&
-    $('meta[property="og:description"]').length > 0;
-  const hasTwitterCard = $('meta[name="twitter:card"]').length > 0;
-  const hasLang = Boolean($("html").attr("lang"));
-  const hasNoindex = robotsMeta.includes("noindex");
-  const { hasRobotsTxt, hasSitemap } = await inspectInfra(origin);
+  const infra = await inspectInfra(origin);
 
   const snapshot: AuditSnapshot = {
-    titleTag: title,
-    metaDescription,
-    canonical,
-    robotsMeta,
-    h1s: $("h1")
-      .toArray()
-      .map((node) => $(node).text().trim())
-      .filter(Boolean)
-      .slice(0, 5),
-    h2s: $("h2")
-      .toArray()
-      .map((node) => $(node).text().trim())
-      .filter(Boolean)
-      .slice(0, 8),
-    ogTitle: $('meta[property="og:title"]').attr("content")?.trim() || "",
-    ogDescription: $('meta[property="og:description"]').attr("content")?.trim() || "",
-    twitterCard: $('meta[name="twitter:card"]').attr("content")?.trim() || "",
+    titleTag: inspection.title,
+    metaDescription: inspection.metaDescription,
+    canonical: inspection.canonical,
+    robotsMeta: inspection.robotsMeta,
+    h1s: inspection.h1s,
+    h2s: inspection.h2s,
+    ogTitle: inspection.ogTitle,
+    ogDescription: inspection.ogDescription,
+    twitterCard: inspection.twitterCard,
   };
 
   const metrics: AuditMetrics = {
-    statusCode: response.status,
-    titleLength: textLength(title),
-    metaDescriptionLength: textLength(metaDescription),
-    h1Count,
-    h2Count,
-    paragraphCount,
-    wordCount,
-    internalLinks,
-    externalLinks,
-    images: imageNodes.length,
-    imagesMissingAlt,
-    scripts,
-    stylesheets,
-    domNodes,
-    structuredDataBlocks,
-    hreflangCount,
-    hasCanonical: Boolean(canonical),
-    hasNoindex,
-    hasRobotsTxt,
-    hasSitemap,
-    hasSchema,
-    hasViewport,
-    hasOpenGraph,
-    hasTwitterCard,
-    hasLang,
+    statusCode: fetched.statusCode,
+    titleLength: textLength(inspection.title),
+    metaDescriptionLength: textLength(inspection.metaDescription),
+    h1Count: inspection.h1s.length,
+    h2Count: inspection.h2s.length,
+    paragraphCount: inspection.paragraphCount,
+    wordCount: inspection.wordCount,
+    internalLinks: inspection.internalLinks,
+    externalLinks: inspection.externalLinks,
+    images: inspection.images,
+    imagesMissingAlt: inspection.imagesMissingAlt,
+    scripts: inspection.scripts,
+    stylesheets: inspection.stylesheets,
+    domNodes: inspection.domNodes,
+    structuredDataBlocks: inspection.structuredDataBlocks,
+    hreflangCount: inspection.hreflangCount,
+    hasCanonical: inspection.hasCanonical,
+    hasNoindex: inspection.hasNoindex,
+    hasRobotsTxt: infra.hasRobotsTxt,
+    hasSitemap: infra.hasSitemap,
+    hasSchema: inspection.hasSchema,
+    hasViewport: inspection.hasViewport,
+    hasOpenGraph: inspection.hasOpenGraph,
+    hasTwitterCard: inspection.hasTwitterCard,
+    hasLang: inspection.hasLang,
   };
 
-  if (!response.ok) {
+  if (fetched.statusCode >= 400) {
     pushIssue(insights, "technicalSeo", {
       title: "Page did not return a healthy status code",
       severity: "high",
-      evidence: `The fetched URL returned HTTP ${response.status}. Search engines and users may not reach the intended page reliably.`,
+      evidence: `The fetched URL returned HTTP ${fetched.statusCode}. Search engines and users may not reach the intended page reliably.`,
       action: "Fix the response status, redirect chain, or deployment issue before investing in on-page SEO work.",
     });
   }
 
-  if (!title) {
+  if (!inspection.title) {
     pushIssue(insights, "technicalSeo", {
       title: "Missing title tag",
       severity: "high",
@@ -273,7 +133,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
       htmlEvidence,
       "Title tag",
       "<title></title>",
-      `<title>${finalUrlObject.hostname.replace(/^www\./, "")} | ${$("h1").first().text().trim() || "Primary page topic"}</title>`,
+      `<title>${finalUrlObject.hostname.replace(/^www\./, "")} | ${inspection.h1s[0] || "Primary page topic"}</title>`,
       "A strong title is one of the highest-impact SEO signals for CTR and topical clarity."
     );
   } else if (metrics.titleLength < 35 || metrics.titleLength > 65) {
@@ -286,13 +146,13 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     pushEvidence(
       htmlEvidence,
       "Title tag",
-      `<title>${title}</title>`,
-      `<title>${title.slice(0, 58)}</title>`,
+      `<title>${inspection.title}</title>`,
+      `<title>${inspection.title.slice(0, 58)}</title>`,
       "Keeping the title concise helps preserve the whole message in SERP snippets."
     );
   }
 
-  if (!metaDescription) {
+  if (!inspection.metaDescription) {
     pushIssue(insights, "contentQuality", {
       title: "Missing meta description",
       severity: "medium",
@@ -315,7 +175,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (!canonical) {
+  if (!inspection.canonical) {
     pushIssue(insights, "technicalSeo", {
       title: "Canonical tag is missing",
       severity: "medium",
@@ -331,23 +191,23 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     );
   }
 
-  if (hasNoindex) {
+  if (inspection.hasNoindex) {
     pushIssue(insights, "technicalSeo", {
       title: "Page is marked noindex",
       severity: "high",
-      evidence: `The robots meta contains "${robotsMeta}", which can stop the page from being indexed.`,
+      evidence: `The robots meta contains "${inspection.robotsMeta}", which can stop the page from being indexed.`,
       action: "Remove the noindex directive unless this page is intentionally blocked from search.",
     });
     pushEvidence(
       htmlEvidence,
       "Robots meta",
-      `<meta name="robots" content="${robotsMeta}">`,
+      `<meta name="robots" content="${inspection.robotsMeta}">`,
       '<meta name="robots" content="index,follow">',
       "Indexable pages need crawler directives that match the SEO goal."
     );
   }
 
-  if (!hasLang) {
+  if (!inspection.hasLang) {
     pushIssue(insights, "technicalSeo", {
       title: "HTML language attribute is missing",
       severity: "low",
@@ -356,7 +216,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (!hasViewport) {
+  if (!inspection.hasViewport) {
     pushIssue(insights, "technicalSeo", {
       title: "Viewport meta tag is missing",
       severity: "medium",
@@ -365,23 +225,23 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (h1Count === 0) {
+  if (inspection.h1s.length === 0) {
     pushIssue(insights, "contentQuality", {
       title: "The page has no H1",
       severity: "high",
       evidence: "Search engines and users do not get a clear top-level topic heading from the content.",
       action: "Add one visible H1 that matches the main intent of the page without duplicating the title word-for-word.",
     });
-  } else if (h1Count > 1) {
+  } else if (inspection.h1s.length > 1) {
     pushIssue(insights, "contentQuality", {
       title: "Multiple H1s dilute the page hierarchy",
       severity: "medium",
-      evidence: `The page contains ${h1Count} H1 tags, which can blur the primary topic signal.`,
+      evidence: `The page contains ${inspection.h1s.length} H1 tags, which can blur the primary topic signal.`,
       action: "Keep one main H1 and convert the rest into H2 or H3 headings based on section hierarchy.",
     });
   }
 
-  if (h2Count === 0) {
+  if (inspection.h2s.length === 0) {
     pushIssue(insights, "contentQuality", {
       title: "Subheading structure is thin",
       severity: "low",
@@ -390,41 +250,41 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (wordCount < 250) {
+  if (inspection.wordCount < 250) {
     pushIssue(insights, "contentQuality", {
       title: "Page content is very thin",
       severity: "high",
-      evidence: `The page only exposes about ${wordCount} words of visible copy, which is usually not enough to rank or convert well for commercial queries.`,
+      evidence: `The page only exposes about ${inspection.wordCount} words of visible copy, which is usually not enough to rank or convert well for commercial queries.`,
       action: "Expand the page with practical sections that explain the offer, use cases, proof points, and FAQs.",
     });
-  } else if (wordCount < 500) {
+  } else if (inspection.wordCount < 500) {
     pushIssue(insights, "contentQuality", {
       title: "Page could use more semantic depth",
       severity: "medium",
-      evidence: `The page has roughly ${wordCount} words of visible copy, which may not cover the full intent well enough.`,
+      evidence: `The page has roughly ${inspection.wordCount} words of visible copy, which may not cover the full intent well enough.`,
       action: "Add richer supporting copy around benefits, objections, use cases, and internal links.",
     });
   }
 
-  if (imagesMissingAlt > 0) {
+  if (inspection.imagesMissingAlt > 0) {
     pushIssue(insights, "technicalSeo", {
       title: "Some images are missing alt text",
-      severity: imagesMissingAlt > 3 ? "medium" : "low",
-      evidence: `${imagesMissingAlt} image${imagesMissingAlt === 1 ? "" : "s"} have no alt attribute, which weakens accessibility and image search relevance.`,
+      severity: inspection.imagesMissingAlt > 3 ? "medium" : "low",
+      evidence: `${inspection.imagesMissingAlt} image${inspection.imagesMissingAlt === 1 ? "" : "s"} have no alt attribute, which weakens accessibility and image search relevance.`,
       action: "Add concise descriptive alt text to meaningful images and use empty alt text only for decorative assets.",
     });
   }
 
-  if (internalLinks < 3) {
+  if (inspection.internalLinks < 3) {
     pushIssue(insights, "technicalSeo", {
       title: "Internal linking is too sparse",
       severity: "medium",
-      evidence: `Only ${internalLinks} internal link${internalLinks === 1 ? "" : "s"} were found on the page, which limits crawl flow and topical clustering.`,
+      evidence: `Only ${inspection.internalLinks} internal link${inspection.internalLinks === 1 ? "" : "s"} were found on the page, which limits crawl flow and topical clustering.`,
       action: "Add a visible internal link block to relevant money pages, supporting pages, and FAQs.",
     });
   }
 
-  if (!hasSchema) {
+  if (!inspection.hasSchema) {
     pushIssue(insights, "technicalSeo", {
       title: "Structured data is missing",
       severity: "low",
@@ -433,7 +293,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (!hasOpenGraph) {
+  if (!inspection.hasOpenGraph) {
     pushIssue(insights, "contentQuality", {
       title: "Social preview metadata is incomplete",
       severity: "low",
@@ -442,7 +302,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (!hasTwitterCard) {
+  if (!inspection.hasTwitterCard) {
     pushIssue(insights, "contentQuality", {
       title: "Twitter card metadata is missing",
       severity: "low",
@@ -451,7 +311,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (!hasRobotsTxt) {
+  if (!infra.hasRobotsTxt) {
     pushIssue(insights, "technicalSeo", {
       title: "robots.txt is missing or inaccessible",
       severity: "medium",
@@ -460,7 +320,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (!hasSitemap) {
+  if (!infra.hasSitemap) {
     pushIssue(insights, "technicalSeo", {
       title: "XML sitemap is missing or hard to discover",
       severity: "medium",
@@ -469,20 +329,20 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
     });
   }
 
-  if (scripts > 18 || domNodes > 1200 || imageNodes.length > 20) {
+  if (inspection.scripts > 18 || inspection.domNodes > 1200 || inspection.images > 20) {
     pushIssue(insights, "pagePerformance", {
       title: "Page structure is heavier than it needs to be",
-      severity: scripts > 24 || domNodes > 1800 ? "medium" : "low",
-      evidence: `The page uses ${scripts} scripts, ${imageNodes.length} images, and about ${domNodes} DOM nodes, which can increase rendering and interaction cost.`,
+      severity: inspection.scripts > 24 || inspection.domNodes > 1800 ? "medium" : "low",
+      evidence: `The page uses ${inspection.scripts} scripts, ${inspection.images} images, and about ${inspection.domNodes} DOM nodes, which can increase rendering and interaction cost.`,
       action: "Trim non-critical scripts, lazy-load media where possible, and simplify overly deep layout structures.",
     });
   }
 
-  if (stylesheets > 5) {
+  if (inspection.stylesheets > 5) {
     pushIssue(insights, "pagePerformance", {
       title: "Stylesheet count suggests render-blocking overhead",
       severity: "low",
-      evidence: `The page references ${stylesheets} stylesheet files, which can slow first render if they are all critical.`,
+      evidence: `The page references ${inspection.stylesheets} stylesheet files, which can slow first render if they are all critical.`,
       action: "Reduce stylesheet fragmentation or inline the smallest critical styles for faster first paint.",
     });
   }
@@ -511,7 +371,7 @@ export async function runTechnicalAudit(rawUrl: string): Promise<TechnicalAuditR
   return {
     url: normalizedUrl,
     finalUrl,
-    title: title || $("h1").first().text().trim() || finalUrlObject.hostname,
+    title: inspection.title || inspection.h1s[0] || finalUrlObject.hostname,
     score,
     status: statusFromScore(score),
     fetchedAt: new Date().toISOString(),

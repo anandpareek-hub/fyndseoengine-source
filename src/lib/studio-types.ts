@@ -197,6 +197,88 @@ export type KeywordReport = {
   competitors: KeywordCompetitor[];
 };
 
+export type Neo4jHealthCheck = {
+  storage: "neo4j" | "local-only";
+  connected: boolean;
+  checkedAt: string;
+  message: string;
+  uri: string | null;
+};
+
+export type SitePageSnapshot = {
+  url: string;
+  path: string;
+  title: string;
+  metaDescription: string;
+  canonical: string;
+  h1: string;
+  statusCode: number;
+  wordCount: number;
+  internalLinks: number;
+  externalLinks: number;
+  imagesMissingAlt: number;
+  hasNoindex: boolean;
+  pageHash: string;
+  excerpt: string;
+  discoveredFrom: "homepage" | "sitemap" | "internal";
+  lastmod: string | null;
+};
+
+export type SiteSnapshot = {
+  snapshotId: string;
+  websiteUrl: string;
+  finalOrigin: string;
+  generatedAt: string;
+  pageLimit: number;
+  hasRobotsTxt: boolean;
+  hasSitemap: boolean;
+  sitemapUrl: string | null;
+  pages: SitePageSnapshot[];
+  warnings: string[];
+};
+
+export type SiteChangeType =
+  | "page-added"
+  | "page-removed"
+  | "status-changed"
+  | "title-updated"
+  | "meta-updated"
+  | "content-shift"
+  | "canonical-changed"
+  | "indexability-changed";
+
+export type SiteChange = {
+  type: SiteChangeType;
+  severity: Severity;
+  url: string;
+  title: string;
+  summary: string;
+  action: string;
+  before?: string;
+  after?: string;
+};
+
+export type InsightsReport = {
+  workspaceKey: string;
+  projectName: string;
+  websiteUrl: string;
+  storage: "neo4j" | "local-only";
+  hasBaseline: boolean;
+  syncedAt: string | null;
+  previousSnapshotAt: string | null;
+  refreshMode: "baseline" | "fresh" | "cached" | "unavailable";
+  summary: {
+    pagesTracked: number;
+    newPages: number;
+    removedPages: number;
+    changedPages: number;
+    warningSignals: number;
+  };
+  warnings: string[];
+  changes: SiteChange[];
+  latestSnapshot: SiteSnapshot | null;
+};
+
 export type SharedWorkspaceState = {
   key: string;
   profile: WorkspaceProfile;

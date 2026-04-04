@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { marked } from "marked";
 import {
@@ -39,17 +39,27 @@ import type {
   ActionPlanItem,
   DraftKind,
   GeneratedPageDraft,
+  InsightsReport,
   KeywordCluster,
+  Neo4jHealthCheck,
   KeywordReport,
   NewPageOpportunity,
   SavedStrategyDraft,
   Severity,
+  SiteChange,
   SharedWorkspaceState,
   TechnicalAuditResult,
   WorkspaceProfile,
 } from "@/lib/studio-types";
 
-type WorkflowTab = "strategy" | "audit" | "keywords" | "actions" | "pages" | "settings";
+type WorkflowTab =
+  | "strategy"
+  | "audit"
+  | "insights"
+  | "keywords"
+  | "actions"
+  | "pages"
+  | "settings";
 
 type NewPageForm = {
   pageTitle: string;
@@ -150,6 +160,13 @@ const workflows: Array<{
     icon: <LayoutGrid className="size-4" />,
   },
   {
+    id: "insights",
+    label: "Insights",
+    eyebrow: "Monitor",
+    description: "Track new pages, content shifts, and warning signals from daily Neo4j-backed snapshots.",
+    icon: <History className="size-4" />,
+  },
+  {
     id: "keywords",
     label: "Basic SEO",
     eyebrow: "Audit",
@@ -209,7 +226,11 @@ export default function PersonalSeoWorkspace({
   const [workspaceStorage, setWorkspaceStorage] = useState<"local-only" | "neo4j" | "unknown">(
     "unknown"
   );
+  const [neo4jHealth, setNeo4jHealth] = useState<Neo4jHealthCheck | null>(null);
   const [sharedLoading, setSharedLoading] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [insightsReport, setInsightsReport] = useState<InsightsReport | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const [pageForm, setPageForm] = useState<NewPageForm>(emptyNewPageForm);
   const [pageDraft, setPageDraft] = useState<GeneratedPageDraft | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
@@ -318,6 +339,11 @@ export default function PersonalSeoWorkspace({
 
   useEffect(() => {
     if (!hydrated) return;
+    void checkConnection();
+  }, [hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
   }, [hydrated, profile]);
 
@@ -376,6 +402,7 @@ export default function PersonalSeoWorkspace({
   const totalAssets =
     history.length +
     (auditResult ? 1 : 0) +
+    (insightsReport ? 1 : 0) +
     (keywordReport ? 1 : 0) +
     (actionPlan ? 1 : 0) +
     (pageDraft ? 1 : 0);
@@ -387,6 +414,8 @@ export default function PersonalSeoWorkspace({
   const keywordSiteMetrics = keywordReport?.siteMetrics || [];
   const keywordCompetitors = keywordReport?.competitors || [];
   const activeView = workflows.find((item) => item.id === activeTab) || workflows[3];
+  const insightChanges = insightsReport?.changes || [];
+  const latestTrackedPages = insightsReport?.latestSnapshot?.pages || [];
   const operationsOverview = [
     {
       label: "Crawler",
@@ -405,10 +434,18 @@ export default function PersonalSeoWorkspace({
     {
       label: "Storage",
       value: workspaceStorage === "unknown" ? "Local-first" : workspaceStorage,
-      detail:
-        workspaceStorage === "neo4j"
+      detail: neo4jHealth?.message
+        ? neo4jHealth.message
+        : workspaceStorage === "neo4j"
           ? "Shared workspace is connected."
           : "Browser storage stays active even when Neo4j is unavailable.",
+    },
+    {
+      label: "Insights",
+      value: insightsReport?.syncedAt ? "Snapshot history active" : "Waiting for first snapshot",
+      detail: insightsReport?.syncedAt
+        ? `Latest site snapshot synced at ${new Date(insightsReport.syncedAt).toLocaleString()}.`
+        : "The first shared Neo4j snapshot creates the baseline for future what-changed tracking.",
     },
     {
       label: "Publishing flow",
@@ -473,6 +510,9 @@ export default function PersonalSeoWorkspace({
       if (data.workspace) {
         applyWorkspaceState(data.workspace);
         toast.success("Shared workspace loaded");
+        if (data.storage === "neo4j" && data.workspace.profile.websiteUrl) {
+          void loadInsights(data.key || key);
+        }
       } else if (data.storage === "local-only") {
         toast.message("Neo4j is not configured yet. Workspace stays local for now.");
       } else {
@@ -521,6 +561,10 @@ export default function PersonalSeoWorkspace({
       if (data.saved) {
         updateShareUrl(data.key || state.key);
         toast.success("Workspace saved to Neo4j");
+        await checkConnection();
+        if ((data.key || state.key) && profile.websiteUrl.trim()) {
+          void loadInsights(data.key || state.key);
+        }
       } else {
         toast.message("Neo4j is not configured yet. Workspace stayed local.");
       }
@@ -532,6 +576,94 @@ export default function PersonalSeoWorkspace({
       setSharedLoading(false);
     }
   }
+
+  async function checkConnection() {
+    setHealthLoading(true);
+
+    try {
+      const response = await fetch("/api/workspace/health");
+      const data = (await response.json()) as Neo4jHealthCheck & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Neo4j health check failed.");
+      }
+
+      setNeo4jHealth(data);
+      setWorkspaceStorage(data.connected ? "neo4j" : data.storage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Neo4j health check failed.";
+      setNeo4jHealth({
+        storage: "neo4j",
+        connected: false,
+        checkedAt: new Date().toISOString(),
+        message,
+        uri: null,
+      });
+    } finally {
+      setHealthLoading(false);
+    }
+  }
+
+  async function loadInsights(rawKey?: string, refresh = false) {
+    const key = (rawKey || workspaceKey || createWorkspaceKey(profile)).trim();
+
+    if (!key) {
+      toast.error("Add a workspace key before loading Insights.");
+      return;
+    }
+
+    setInsightsLoading(true);
+
+    try {
+      const response = await fetch(
+        `/api/insights?key=${encodeURIComponent(key)}${refresh ? "&refresh=1" : ""}`
+      );
+      const data = (await response.json()) as {
+        key?: string;
+        storage?: "local-only" | "neo4j";
+        report?: InsightsReport | null;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Insights could not be loaded.");
+      }
+
+      setWorkspaceKey(data.key || key);
+      setWorkspaceStorage(data.storage || "unknown");
+      setInsightsReport(data.report || null);
+
+      if (refresh && data.report) {
+        toast.success(data.message || "Insights refreshed");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Insights could not be loaded.";
+      toast.error(message);
+    } finally {
+      setInsightsLoading(false);
+    }
+  }
+
+  const triggerInsightsLoad = useEffectEvent((rawKey?: string, refresh = false) => {
+    void loadInsights(rawKey, refresh);
+  });
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (activeTab !== "insights") return;
+    if (!workspaceKey && !profile.websiteUrl) return;
+    if (insightsReport || insightsLoading) return;
+
+    triggerInsightsLoad();
+  }, [
+    activeTab,
+    hydrated,
+    insightsLoading,
+    insightsReport,
+    profile.websiteUrl,
+    workspaceKey,
+  ]);
 
   async function handleGenerateStrategy() {
     setDraftLoading(true);
@@ -804,6 +936,7 @@ export default function PersonalSeoWorkspace({
     setAuditUrl(sampleProfile.websiteUrl);
     setWorkspaceKey(createWorkspaceKey(sampleProfile));
     setKeywordSeed("running plan for beginners");
+    setInsightsReport(null);
     setPageForm({
       pageTitle: "Half marathon coaching for beginners",
       targetKeyword: "half marathon coaching for beginners",
@@ -825,10 +958,12 @@ export default function PersonalSeoWorkspace({
     setActionPlan(null);
     setKeywordSeed("");
     setKeywordReport(null);
+    setInsightsReport(null);
     setPageForm(emptyNewPageForm);
     setPageDraft(null);
     setWorkspaceKey("");
     setWorkspaceStorage("unknown");
+    setNeo4jHealth(null);
 
     window.localStorage.removeItem(PROFILE_STORAGE_KEY);
     window.localStorage.removeItem(HISTORY_STORAGE_KEY);
@@ -945,7 +1080,7 @@ export default function PersonalSeoWorkspace({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-md border border-[#1c2a45] bg-[#0d1528] px-3 py-1.5 text-[11px] font-medium text-[#93a4bf]">
-                    Storage: {workspaceStorage === "unknown" ? "not checked" : workspaceStorage}
+                    Storage: {neo4jHealth?.connected ? "neo4j connected" : workspaceStorage === "unknown" ? "not checked" : workspaceStorage}
                   </span>
                   <span className="rounded-md border border-[#1c2a45] bg-[#0d1528] px-3 py-1.5 text-[11px] font-medium text-[#93a4bf]">
                     Ahrefs: {keywordProvider === "ahrefs" ? "live" : "fallback"}
@@ -1083,19 +1218,36 @@ export default function PersonalSeoWorkspace({
                           <Link2 className="size-4" />
                           Copy link
                         </GhostButton>
+                        <GhostButton onClick={() => void checkConnection()}>
+                          <ShieldCheck className="size-4" />
+                          {healthLoading ? "Checking..." : "Check connection"}
+                        </GhostButton>
+                        <GhostButton onClick={() => void loadInsights(undefined, true)}>
+                          <RefreshCcw className="size-4" />
+                          {insightsLoading ? "Refreshing..." : "Sync insights"}
+                        </GhostButton>
                       </div>
                       <div className="grid gap-3">
                         <MiniInfoCard
                           label="Workspace status"
                           value={
-                            workspaceStorage === "neo4j"
+                            neo4jHealth?.message ||
+                            (workspaceStorage === "neo4j"
                               ? "Neo4j is connected and shared workspaces are available."
-                              : "The app is still local-first. Use a public Neo4j instance like Aura for deployed team sharing."
+                              : "The app is still local-first. Use a public Neo4j instance like Aura for deployed team sharing.")
+                          }
+                        />
+                        <MiniInfoCard
+                          label="Insights sync"
+                          value={
+                            insightsReport?.syncedAt
+                              ? `Latest baseline synced at ${new Date(insightsReport.syncedAt).toLocaleString()}. Daily refresh runs through the deployed Vercel cron and stores what changed in Neo4j.`
+                              : "The first successful Insights sync will save a baseline site snapshot in Neo4j so future runs can compare what changed."
                           }
                         />
                         <MiniInfoCard
                           label="Recommended flow"
-                          value="Run PageSpeed, review Basic SEO keywords, convert issues into Advanced actions, then ship the next Page draft."
+                          value="Run PageSpeed, review Insights for what changed, shape Basic SEO keywords, convert issues into Advanced actions, then ship the next Page draft."
                         />
                       </div>
                     </div>
@@ -1541,6 +1693,190 @@ export default function PersonalSeoWorkspace({
                       icon={<CheckCircle2 className="size-5" />}
                       title="Use it as the source of truth"
                       description="The next workflows pull from the latest audit so you do not need to re-explain what is wrong."
+                    />
+                  </div>
+                )}
+              </PanelCard>
+            </motion.section>
+          ) : null}
+
+          {activeTab === "insights" ? (
+            <motion.section
+              key="insights"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.28 }}
+              className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
+            >
+              <PanelCard
+                eyebrow="Insights"
+                title="Track what changed across the site"
+                description="This tab stores site snapshots in Neo4j, compares them day over day, and surfaces new pages, content shifts, and warning signals the team should review."
+              >
+                <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
+                  <p className="text-sm font-semibold text-[#f8fbff]">Workspace and crawl source</p>
+                  <div className="mt-4 grid gap-3">
+                    <MiniInfoCard
+                      label="Workspace key"
+                      value={workspaceKey || createWorkspaceKey(profile) || "Set in Settings"}
+                    />
+                    <MiniInfoCard
+                      label="Tracked website"
+                      value={profile.websiteUrl || "Add the website URL in Settings to initialize Insights"}
+                    />
+                    <MiniInfoCard
+                      label="Neo4j status"
+                      value={
+                        neo4jHealth?.message ||
+                        "Run a connection check to confirm the app can save shared snapshots."
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <PrimaryButton
+                    onClick={() => void loadInsights(undefined, true)}
+                    disabled={insightsLoading}
+                  >
+                    {insightsLoading ? (
+                      <WandSparkles className="size-4 animate-pulse" />
+                    ) : (
+                      <RefreshCcw className="size-4" />
+                    )}
+                    {insightsLoading ? "Refreshing insights..." : "Refresh site snapshot"}
+                  </PrimaryButton>
+                  <GhostButton onClick={() => void checkConnection()}>
+                    <Database className="size-4" />
+                    {healthLoading ? "Checking connection..." : "Check Neo4j"}
+                  </GhostButton>
+                </div>
+
+                <div className="mt-6 grid gap-3">
+                  <MiniInfoCard
+                    label="First run"
+                    value="The first successful refresh creates the baseline snapshot for the main product in Neo4j."
+                  />
+                  <MiniInfoCard
+                    label="Daily refresh"
+                    value="The deployed app includes a daily Vercel cron that refreshes stored snapshots and preserves site history."
+                  />
+                  <MiniInfoCard
+                    label="Diff logic"
+                    value="Insights compare new snapshots with the previous baseline to flag new pages, removals, title/meta shifts, status changes, noindex changes, and meaningful content edits."
+                  />
+                </div>
+              </PanelCard>
+
+              <PanelCard
+                eyebrow="What Changed"
+                title={
+                  insightsReport?.syncedAt
+                    ? `Latest snapshot from ${new Date(insightsReport.syncedAt).toLocaleString()}`
+                    : insightsLoading
+                      ? "Building the first site snapshot..."
+                      : "Run the first snapshot to start tracking changes"
+                }
+                description={
+                  insightsReport
+                    ? insightsReport.hasBaseline
+                      ? "Changes below compare the latest stored snapshot with the previous day’s crawl."
+                      : "This is the baseline snapshot. The next refresh will start showing what changed."
+                    : "Once a shared workspace is connected, this panel becomes your change log for the site."
+                }
+              >
+                {insightsReport ? (
+                  <div className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <MetricCard
+                        label="Tracked pages"
+                        value={String(insightsReport.summary.pagesTracked)}
+                        detail="Current crawl set"
+                      />
+                      <MetricCard
+                        label="New pages"
+                        value={String(insightsReport.summary.newPages)}
+                        detail="Detected since last snapshot"
+                      />
+                      <MetricCard
+                        label="Changed pages"
+                        value={String(insightsReport.summary.changedPages)}
+                        detail="Metadata or content shifts"
+                      />
+                      <MetricCard
+                        label="Warning signals"
+                        value={String(insightsReport.summary.warningSignals)}
+                        detail="Status, noindex, thin pages, or infra signals"
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <SimpleListCard
+                        title="Warnings"
+                        badge={`${insightsReport.warnings.length}`}
+                        items={
+                          insightsReport.warnings.length
+                            ? insightsReport.warnings
+                            : ["No sitewide warning signals were flagged in the latest snapshot."]
+                        }
+                      />
+                      <SimpleListCard
+                        title="Tracked page sample"
+                        badge={`${latestTrackedPages.length}`}
+                        items={latestTrackedPages.slice(0, 6).map((page) => `${page.path} · ${page.wordCount} words`)}
+                      />
+                    </div>
+
+                    {insightChanges.length ? (
+                      <div>
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
+                            Change log
+                          </p>
+                          <p className="mt-1 text-sm text-[#7f8ea8]">
+                            Action-oriented deltas pulled from the latest Neo4j snapshots.
+                          </p>
+                        </div>
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          {insightChanges.map((change) => (
+                            <InsightChangeCard key={`${change.type}-${change.url}-${change.summary}`} change={change} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyState
+                        title="Baseline captured"
+                        description="No historical diff is available yet. After the next daily refresh, this panel will highlight what changed."
+                      />
+                    )}
+                  </div>
+                ) : insightsLoading ? (
+                  <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[1.2rem] border border-[#1f2d4b] bg-[#0b1426] text-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#2a467d]">
+                      <RefreshCcw className="size-7 animate-spin text-[#5f93ff]" />
+                    </div>
+                    <p className="mt-5 text-[15px] font-medium text-[#dbe8ff]">Building the site snapshot...</p>
+                    <p className="mt-2 max-w-md text-[13px] leading-6 text-[#7f8ea8]">
+                      Saving the current crawl into Neo4j so future refreshes can answer the question: what changed?
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <HintCard
+                      icon={<History className="size-5" />}
+                      title="Create the baseline"
+                      description="The first snapshot stores your main site state so future refreshes can compare against it."
+                    />
+                    <HintCard
+                      icon={<TriangleAlert className="size-5" />}
+                      title="Spot risky changes"
+                      description="When templates, metadata, or indexability drift, the diff highlights the pages that need review."
+                    />
+                    <HintCard
+                      icon={<ArrowRight className="size-5" />}
+                      title="Keep the team aligned"
+                      description="Insights turn daily crawl deltas into a shared record of what changed on the site."
                     />
                   </div>
                 )}
@@ -2269,6 +2605,52 @@ function SimpleListCard({
           <p className="text-sm leading-6 text-[#7f8ea8]">No items yet.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+function InsightChangeCard({
+  change,
+}: {
+  change: SiteChange;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-[#f8fbff]">{change.title}</p>
+        <span
+          className={cn(
+            "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]",
+            toneClasses(change.severity)
+          )}
+        >
+          {change.severity}
+        </span>
+      </div>
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">
+        {change.type.replace(/-/g, " ")}
+      </p>
+      <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{change.summary}</p>
+      {(change.before || change.after) ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-[#0b1426] px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">
+              Before
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#d6e4ff]">{change.before || "n/a"}</p>
+          </div>
+          <div className="rounded-xl bg-[#0b1426] px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">
+              After
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#d6e4ff]">{change.after || "n/a"}</p>
+          </div>
+        </div>
+      ) : null}
+      <div className="mt-4 rounded-xl bg-[#152340] px-3 py-3 text-sm leading-6 text-[#bdd4ff]">
+        <span className="font-semibold text-[#f8fbff]">Recommended action:</span> {change.action}
+      </div>
+      <p className="mt-3 truncate text-[11px] text-[#7f8ea8]">{change.url}</p>
     </div>
   );
 }

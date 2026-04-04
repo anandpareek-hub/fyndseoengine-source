@@ -20,6 +20,10 @@ function getConfig(): Neo4jConfig | null {
   return { uri, username, password };
 }
 
+export function getNeo4jUri() {
+  return getConfig()?.uri || null;
+}
+
 export function hasNeo4jConfig() {
   return Boolean(getConfig());
 }
