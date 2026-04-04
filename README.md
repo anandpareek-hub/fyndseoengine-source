@@ -125,6 +125,8 @@ If you want the daily snapshot refresh endpoint protected, also add:
 
 - `CRON_SECRET`
 
+Vercel cron jobs only run on production deployments, not preview deployments.
+
 If you want Ahrefs-backed search intelligence, add:
 
 - `AHREFS_API_KEY`
