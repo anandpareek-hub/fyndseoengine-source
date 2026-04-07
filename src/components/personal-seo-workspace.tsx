@@ -4,33 +4,33 @@ import { startTransition, useEffect, useEffectEvent, useState, type ReactNode } 
 import { AnimatePresence, motion } from "framer-motion";
 import { marked } from "marked";
 import {
-  ArrowLeft,
   ArrowRight,
   BookText,
   CheckCircle2,
-  Database,
+  ChevronDown,
+  ChevronRight,
   Copy,
+  Database,
   Download,
-  EllipsisVertical,
-  FilePlus2,
+  ExternalLink,
   FileSearch,
+  FilePlus2,
   Globe2,
-  Gauge,
-  Hammer,
-  History,
-  LayoutGrid,
+  LayoutDashboard,
   Link2,
-  Monitor,
   NotebookPen,
+  PenTool,
+  Plus,
   RefreshCcw,
-  Rocket,
+  Search,
   Settings2,
-  ShieldCheck,
-  Smartphone,
+  Shield,
   Sparkles,
   Target,
   TriangleAlert,
   WandSparkles,
+  X,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -50,32 +50,32 @@ import type {
   SharedWorkspaceState,
   TechnicalAuditResult,
   WorkspaceProfile,
+  HtmlEvidence,
 } from "@/lib/studio-types";
 
-type WorkflowTab =
-  | "strategy"
-  | "audit"
-  | "insights"
-  | "keywords"
-  | "actions"
-  | "pages"
-  | "settings";
+/* ─── Tab types ─── */
 
-type NewPageForm = {
-  pageTitle: string;
-  targetKeyword: string;
-  pageGoal: string;
-  pageType: string;
-  notes: string;
+type WorkflowTab = "dashboard" | "assessment" | "content" | "settings";
+
+type ContentPageType = "ai-tool" | "blog" | "new-page";
+
+type ContentForm = {
+  keyword: string;
+  pageUrl: string;
+  pageType: ContentPageType;
 };
+
+/* ─── Storage keys ─── */
 
 const PROFILE_STORAGE_KEY = "fynd-personal-seo-profile";
 const HISTORY_STORAGE_KEY = "fynd-personal-seo-history";
 const AUDIT_STORAGE_KEY = "fynd-personal-seo-audit";
 const ACTIONS_STORAGE_KEY = "fynd-personal-seo-actions";
 const KEYWORDS_STORAGE_KEY = "fynd-personal-seo-keywords";
-const PAGE_FORM_STORAGE_KEY = "fynd-personal-seo-page-form";
-const PAGE_DRAFT_STORAGE_KEY = "fynd-personal-seo-page-draft";
+const CONTENT_FORM_STORAGE_KEY = "fynd-seo-content-form";
+const CONTENT_RESULT_STORAGE_KEY = "fynd-seo-content-result";
+
+/* ─── Defaults ─── */
 
 const emptyProfile: WorkspaceProfile = {
   projectName: "",
@@ -88,609 +88,213 @@ const emptyProfile: WorkspaceProfile = {
   notes: "",
 };
 
-const sampleProfile: WorkspaceProfile = {
-  projectName: "Northstar Running Notes",
-  websiteUrl: "https://northstarrunningnotes.com",
-  audience: "Curious runners who want practical training advice without elite-athlete jargon",
-  offer: "A personal brand publishing training guides, lightweight coaching offers, and email courses",
-  differentiators: "Practical lived experience, clear explanations, and an editorial tone that respects beginner runners",
-  goals: "Grow organic traffic, build an email list, and turn core category pages into product discovery paths",
-  voice: "Thoughtful, practical, warm, and lightly opinionated",
-  notes: "Favor realistic SEO moves a solo creator can ship. Keep the plan commercially useful, not just informational.",
+const emptyContentForm: ContentForm = {
+  keyword: "",
+  pageUrl: "",
+  pageType: "ai-tool",
 };
 
-const emptyNewPageForm: NewPageForm = {
-  pageTitle: "",
-  targetKeyword: "",
-  pageGoal: "",
-  pageType: "landing page",
-  notes: "",
-};
+/* ─── Nav config ─── */
 
-const deliverables: Array<{
-  id: DraftKind;
-  label: string;
-  eyebrow: string;
-  description: string;
-}> = [
-  {
-    id: "strategy-snapshot",
-    label: "Strategy Snapshot",
-    eyebrow: "Big picture",
-    description: "A fast operator memo with positioning, keyword themes, and a 30-day execution plan.",
-  },
-  {
-    id: "content-calendar",
-    label: "Content Calendar",
-    eyebrow: "Publishing rhythm",
-    description: "A practical publishing slate with topic sequencing, intent, and CTA logic.",
-  },
-  {
-    id: "article-brief",
-    label: "Article Brief",
-    eyebrow: "Execution",
-    description: "A sharp brief for one page with angle, outline, proof points, and CTA guidance.",
-  },
-  {
-    id: "homepage-refresh",
-    label: "Homepage Refresh",
-    eyebrow: "Messaging",
-    description: "A critique plus homepage copy rewrite focused on conversion and search clarity.",
-  },
-  {
-    id: "content-audit",
-    label: "Content Audit",
-    eyebrow: "Diagnosis",
-    description: "A quick audit of content strengths, weak spots, refresh opportunities, and fast wins.",
-  },
-];
-
-const workflows: Array<{
+const navItems: Array<{
   id: WorkflowTab;
   label: string;
-  eyebrow: string;
-  description: string;
   icon: ReactNode;
 }> = [
-  {
-    id: "strategy",
-    label: "Dashboard",
-    eyebrow: "Audit",
-    description: "Overview, strategy drafts, and the current SEO operating state.",
-    icon: <LayoutGrid className="size-4" />,
-  },
-  {
-    id: "insights",
-    label: "Insights",
-    eyebrow: "Monitor",
-    description: "Track new pages, content shifts, and warning signals from daily Neo4j-backed snapshots.",
-    icon: <History className="size-4" />,
-  },
-  {
-    id: "keywords",
-    label: "Basic SEO",
-    eyebrow: "Audit",
-    description: "Keyword clustering, intent mapping, and foundational SEO opportunities.",
-    icon: <ShieldCheck className="size-4" />,
-  },
-  {
-    id: "actions",
-    label: "Advanced",
-    eyebrow: "Audit",
-    description: "Turn the latest audit into a concrete fix backlog and follow-up page ideas.",
-    icon: <Rocket className="size-4" />,
-  },
-  {
-    id: "audit",
-    label: "PageSpeed",
-    eyebrow: "Audit",
-    description: "Run a page-speed style audit with HTML evidence, quick wins, and major fixes.",
-    icon: <Gauge className="size-4" />,
-  },
-  {
-    id: "pages",
-    label: "Pages",
-    eyebrow: "Audit",
-    description: "Draft fresh SEO pages with metadata, structure, CTA, and publishing copy.",
-    icon: <FilePlus2 className="size-4" />,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    eyebrow: "Settings",
-    description: "Project profile, shared workspace, and deployment-aware storage controls.",
-    icon: <Settings2 className="size-4" />,
-  },
+  { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard className="size-4" /> },
+  { id: "assessment", label: "SEO Assessment", icon: <Shield className="size-4" /> },
+  { id: "content", label: "Content", icon: <PenTool className="size-4" /> },
 ];
+
+/* ─── Component ─── */
 
 type PersonalSeoWorkspaceProps = {
   legacyPath: string | null;
 };
 
-export default function PersonalSeoWorkspace({
-  legacyPath,
-}: PersonalSeoWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<WorkflowTab>("audit");
+export default function PersonalSeoWorkspace({ legacyPath }: PersonalSeoWorkspaceProps) {
+  // Core state
+  const [activeTab, setActiveTab] = useState<WorkflowTab>("dashboard");
   const [profile, setProfile] = useState<WorkspaceProfile>(emptyProfile);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Dashboard / strategy
   const [kind, setKind] = useState<DraftKind>("strategy-snapshot");
   const [focusKeyword, setFocusKeyword] = useState("");
   const [constraints, setConstraints] = useState("");
   const [activeDraft, setActiveDraft] = useState<SavedStrategyDraft | null>(null);
   const [history, setHistory] = useState<SavedStrategyDraft[]>([]);
-  const [auditUrl, setAuditUrl] = useState("");
-  const [auditResult, setAuditResult] = useState<TechnicalAuditResult | null>(null);
-  const [actionPlan, setActionPlan] = useState<AuditActionPlan | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+
+  // Keywords
   const [keywordSeed, setKeywordSeed] = useState("");
   const [keywordReport, setKeywordReport] = useState<KeywordReport | null>(null);
+  const [keywordLoading, setKeywordLoading] = useState(false);
+
+  // Assessment (multi-URL)
+  const [assessmentUrls, setAssessmentUrls] = useState<string[]>([""]);
+  const [assessmentResults, setAssessmentResults] = useState<TechnicalAuditResult[]>([]);
+  const [assessmentSummary, setAssessmentSummary] = useState<{
+    totalUrls: number;
+    averageScore: number;
+    totalIssues: number;
+    commonIssues: string[];
+  } | null>(null);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<{
+    issue: { title: string; severity: Severity; evidence: string; action: string };
+    evidence?: HtmlEvidence;
+    url: string;
+  } | null>(null);
+
+  // Action plan (from assessment)
+  const [actionPlan, setActionPlan] = useState<AuditActionPlan | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Content generation
+  const [contentForm, setContentForm] = useState<ContentForm>(emptyContentForm);
+  const [contentResult, setContentResult] = useState<Record<string, unknown> | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
+
+  // Workspace / settings
   const [workspaceKey, setWorkspaceKey] = useState("");
-  const [workspaceStorage, setWorkspaceStorage] = useState<"local-only" | "neo4j" | "unknown">(
-    "unknown"
-  );
+  const [workspaceStorage, setWorkspaceStorage] = useState<"local-only" | "neo4j" | "unknown">("unknown");
   const [neo4jHealth, setNeo4jHealth] = useState<Neo4jHealthCheck | null>(null);
   const [sharedLoading, setSharedLoading] = useState(false);
   const [healthLoading, setHealthLoading] = useState(false);
   const [insightsReport, setInsightsReport] = useState<InsightsReport | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
-  const [pageForm, setPageForm] = useState<NewPageForm>(emptyNewPageForm);
-  const [pageDraft, setPageDraft] = useState<GeneratedPageDraft | null>(null);
-  const [draftLoading, setDraftLoading] = useState(false);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [keywordLoading, setKeywordLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(false);
-  const [auditDevice, setAuditDevice] = useState<"mobile" | "desktop">("mobile");
-  const [hydrated, setHydrated] = useState(false);
+
+  /* ─── Hydration ─── */
 
   useEffect(() => {
     marked.setOptions({ breaks: true, gfm: true });
-
     try {
       const savedProfile = window.localStorage.getItem(PROFILE_STORAGE_KEY);
       const savedHistory = window.localStorage.getItem(HISTORY_STORAGE_KEY);
       const savedAudit = window.localStorage.getItem(AUDIT_STORAGE_KEY);
       const savedActions = window.localStorage.getItem(ACTIONS_STORAGE_KEY);
       const savedKeywords = window.localStorage.getItem(KEYWORDS_STORAGE_KEY);
-      const savedPageForm = window.localStorage.getItem(PAGE_FORM_STORAGE_KEY);
-      const savedPageDraft = window.localStorage.getItem(PAGE_DRAFT_STORAGE_KEY);
-      const params = new URLSearchParams(window.location.search);
-      const sharedKey = params.get("project")?.trim() || "";
+      const savedContentForm = window.localStorage.getItem(CONTENT_FORM_STORAGE_KEY);
+      const savedContentResult = window.localStorage.getItem(CONTENT_RESULT_STORAGE_KEY);
 
       if (savedProfile) {
-        const parsedProfile = JSON.parse(savedProfile) as WorkspaceProfile;
-        setProfile(parsedProfile);
-        setAuditUrl(parsedProfile.websiteUrl || "");
-        setWorkspaceKey(sharedKey || createWorkspaceKey(parsedProfile));
+        const parsed = JSON.parse(savedProfile) as WorkspaceProfile;
+        setProfile(parsed);
+        setWorkspaceKey(createWorkspaceKey(parsed));
       }
-
       if (savedHistory) {
-        const parsedHistory = JSON.parse(savedHistory) as SavedStrategyDraft[];
-        setHistory(parsedHistory);
-        setActiveDraft(parsedHistory[0] ?? null);
+        const parsed = JSON.parse(savedHistory) as SavedStrategyDraft[];
+        setHistory(parsed);
+        setActiveDraft(parsed[0] ?? null);
       }
-
       if (savedAudit) {
-        const parsedAudit = JSON.parse(savedAudit) as TechnicalAuditResult;
-        setAuditResult(parsedAudit);
-        setAuditUrl(parsedAudit.url);
+        const parsed = JSON.parse(savedAudit) as TechnicalAuditResult[];
+        if (Array.isArray(parsed)) setAssessmentResults(parsed);
       }
-
-      if (savedActions) {
-        setActionPlan(JSON.parse(savedActions) as AuditActionPlan);
-      }
-
-      if (savedKeywords) {
-        setKeywordReport(JSON.parse(savedKeywords) as KeywordReport);
-      }
-
-      if (savedPageForm) {
-        setPageForm(JSON.parse(savedPageForm) as NewPageForm);
-      }
-
-      if (savedPageDraft) {
-        setPageDraft(JSON.parse(savedPageDraft) as GeneratedPageDraft);
-      }
-
-      if (!savedProfile && sharedKey) {
-        setWorkspaceKey(sharedKey);
-      }
-    } catch (error) {
-      console.error("Failed to load local workspace state", error);
+      if (savedActions) setActionPlan(JSON.parse(savedActions) as AuditActionPlan);
+      if (savedKeywords) setKeywordReport(JSON.parse(savedKeywords) as KeywordReport);
+      if (savedContentForm) setContentForm(JSON.parse(savedContentForm) as ContentForm);
+      if (savedContentResult) setContentResult(JSON.parse(savedContentResult) as Record<string, unknown>);
+    } catch (e) {
+      console.error("Failed to load local workspace state", e);
     } finally {
       setHydrated(true);
     }
   }, []);
 
+  /* ─── Persistence ─── */
+
+  useEffect(() => { if (hydrated) window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile)); }, [hydrated, profile]);
+  useEffect(() => { if (hydrated) window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history)); }, [hydrated, history]);
   useEffect(() => {
     if (!hydrated) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const sharedKey = params.get("project")?.trim() || "";
-
-    if (!sharedKey) {
-      return;
-    }
-
-    setSharedLoading(true);
-
-    void fetch(`/api/workspace?key=${encodeURIComponent(sharedKey)}`)
-      .then(async (response) => {
-        const data = (await response.json()) as {
-          key?: string;
-          storage?: "local-only" | "neo4j";
-          workspace?: SharedWorkspaceState | null;
-        };
-
-        if (!response.ok) {
-          return;
-        }
-
-        setWorkspaceKey(data.key || sharedKey);
-        setWorkspaceStorage(data.storage || "unknown");
-
-        if (data.workspace) {
-          applyWorkspaceState(data.workspace);
-          toast.success("Shared workspace loaded");
-        }
-      })
-      .finally(() => {
-        setSharedLoading(false);
-      });
-  }, [hydrated]);
-
+    if (assessmentResults.length) window.localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(assessmentResults));
+    else window.localStorage.removeItem(AUDIT_STORAGE_KEY);
+  }, [assessmentResults, hydrated]);
   useEffect(() => {
     if (!hydrated) return;
-    void checkConnection();
-  }, [hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-  }, [hydrated, profile]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
-  }, [hydrated, history]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-
-    if (auditResult) {
-      window.localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(auditResult));
-    } else {
-      window.localStorage.removeItem(AUDIT_STORAGE_KEY);
-    }
-  }, [auditResult, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-
-    if (actionPlan) {
-      window.localStorage.setItem(ACTIONS_STORAGE_KEY, JSON.stringify(actionPlan));
-    } else {
-      window.localStorage.removeItem(ACTIONS_STORAGE_KEY);
-    }
+    if (actionPlan) window.localStorage.setItem(ACTIONS_STORAGE_KEY, JSON.stringify(actionPlan));
+    else window.localStorage.removeItem(ACTIONS_STORAGE_KEY);
   }, [actionPlan, hydrated]);
-
   useEffect(() => {
     if (!hydrated) return;
-
-    if (keywordReport) {
-      window.localStorage.setItem(KEYWORDS_STORAGE_KEY, JSON.stringify(keywordReport));
-    } else {
-      window.localStorage.removeItem(KEYWORDS_STORAGE_KEY);
-    }
+    if (keywordReport) window.localStorage.setItem(KEYWORDS_STORAGE_KEY, JSON.stringify(keywordReport));
+    else window.localStorage.removeItem(KEYWORDS_STORAGE_KEY);
   }, [hydrated, keywordReport]);
-
+  useEffect(() => { if (hydrated) window.localStorage.setItem(CONTENT_FORM_STORAGE_KEY, JSON.stringify(contentForm)); }, [hydrated, contentForm]);
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(PAGE_FORM_STORAGE_KEY, JSON.stringify(pageForm));
-  }, [hydrated, pageForm]);
+    if (contentResult) window.localStorage.setItem(CONTENT_RESULT_STORAGE_KEY, JSON.stringify(contentResult));
+    else window.localStorage.removeItem(CONTENT_RESULT_STORAGE_KEY);
+  }, [contentResult, hydrated]);
 
-  useEffect(() => {
-    if (!hydrated) return;
+  /* ─── Handlers ─── */
 
-    if (pageDraft) {
-      window.localStorage.setItem(PAGE_DRAFT_STORAGE_KEY, JSON.stringify(pageDraft));
-    } else {
-      window.localStorage.removeItem(PAGE_DRAFT_STORAGE_KEY);
-    }
-  }, [hydrated, pageDraft]);
-
-  const strategyHtml = renderMarkdown(activeDraft?.content || "");
-  const pageDraftHtml = renderMarkdown(pageDraft?.markdown || "");
-  const totalAssets =
-    history.length +
-    (auditResult ? 1 : 0) +
-    (insightsReport ? 1 : 0) +
-    (keywordReport ? 1 : 0) +
-    (actionPlan ? 1 : 0) +
-    (pageDraft ? 1 : 0);
-  const keywordProvider = keywordReport?.provider || "local-fallback";
-  const keywordProviderLabel = keywordReport?.providerLabel || "Local keyword model";
-  const keywordProviderNote =
-    keywordReport?.providerNote ||
-    "The keyword map is currently using the local model. Add a website URL and a working Ahrefs key to enrich it with live search data.";
-  const keywordSiteMetrics = keywordReport?.siteMetrics || [];
-  const keywordCompetitors = keywordReport?.competitors || [];
-  const activeView = workflows.find((item) => item.id === activeTab) || workflows[3];
-  const insightChanges = insightsReport?.changes || [];
-  const latestTrackedPages = insightsReport?.latestSnapshot?.pages || [];
-  const operationsOverview = [
-    {
-      label: "Crawler",
-      value: "Open-source HTML pass",
-      detail: "Cheerio-backed technical inspection with robots and sitemap checks.",
-    },
-    {
-      label: "Intelligence",
-      value: keywordReport ? keywordProviderLabel : "Ahrefs when available",
-      detail: keywordReport
-        ? keywordProvider === "ahrefs"
-          ? "Live Ahrefs enrichment is active for the current keyword map."
-          : "The local fallback model is active and keeps the workflow available if Ahrefs fails."
-        : "Live Ahrefs enrichment with an automatic local fallback.",
-    },
-    {
-      label: "Storage",
-      value: workspaceStorage === "unknown" ? "Local-first" : workspaceStorage,
-      detail: neo4jHealth?.message
-        ? neo4jHealth.message
-        : workspaceStorage === "neo4j"
-          ? "Shared workspace is connected."
-          : "Browser storage stays active even when Neo4j is unavailable.",
-    },
-    {
-      label: "Insights",
-      value: insightsReport?.syncedAt ? "Snapshot history active" : "Waiting for first snapshot",
-      detail: insightsReport?.syncedAt
-        ? `Latest site snapshot synced at ${new Date(insightsReport.syncedAt).toLocaleString()}.`
-        : "The first shared Neo4j snapshot creates the baseline for future what-changed tracking.",
-    },
-    {
-      label: "Publishing flow",
-      value: "Audit -> actions -> pages",
-      detail: "Move from diagnosis into fix plans, keyword priorities, and ready-to-edit drafts.",
-    },
-  ];
-
-  function buildWorkspaceState(nextKey?: string): SharedWorkspaceState {
-    const key = (nextKey || workspaceKey || createWorkspaceKey(profile)).trim() || "default-workspace";
-
-    return {
-      key,
-      profile,
-      history,
-      auditResult,
-      actionPlan,
-      keywordReport,
-      pageDraft,
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  function applyWorkspaceState(workspace: SharedWorkspaceState) {
-    setWorkspaceKey(workspace.key);
-    setProfile(workspace.profile);
-    setHistory(workspace.history || []);
-    setActiveDraft(workspace.history?.[0] ?? null);
-    setAuditResult(workspace.auditResult || null);
-    setActionPlan(workspace.actionPlan || null);
-    setKeywordReport(workspace.keywordReport || null);
-    setPageDraft(workspace.pageDraft || null);
-    setAuditUrl(workspace.auditResult?.url || workspace.profile.websiteUrl || "");
-  }
-
-  async function loadSharedWorkspace(rawKey?: string) {
-    const key = (rawKey || workspaceKey || createWorkspaceKey(profile)).trim();
-
-    if (!key) {
-      toast.error("Add a workspace key first.");
+  async function handleRunAssessment() {
+    const validUrls = assessmentUrls.map((u) => u.trim()).filter(Boolean);
+    if (!validUrls.length) {
+      toast.error("Add at least one URL to assess.");
       return;
     }
-
-    setSharedLoading(true);
-
+    setAssessmentLoading(true);
+    setAssessmentResults([]);
+    setAssessmentSummary(null);
     try {
-      const response = await fetch(`/api/workspace?key=${encodeURIComponent(key)}`);
-      const data = (await response.json()) as {
-        key?: string;
-        storage?: "local-only" | "neo4j";
-        workspace?: SharedWorkspaceState | null;
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error || "The shared workspace could not be loaded.");
-      }
-
-      setWorkspaceKey(data.key || key);
-      setWorkspaceStorage(data.storage || "unknown");
-
-      if (data.workspace) {
-        applyWorkspaceState(data.workspace);
-        toast.success("Shared workspace loaded");
-        if (data.storage === "neo4j" && data.workspace.profile.websiteUrl) {
-          void loadInsights(data.key || key);
-        }
-      } else if (data.storage === "local-only") {
-        toast.message("Neo4j is not configured yet. Workspace stays local for now.");
-      } else {
-        toast.message("No shared workspace exists for this key yet.");
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The shared workspace could not be loaded.";
-      toast.error(message);
-    } finally {
-      setSharedLoading(false);
-    }
-  }
-
-  async function saveSharedWorkspace() {
-    const state = buildWorkspaceState();
-
-    setSharedLoading(true);
-
-    try {
-      const response = await fetch("/api/workspace", {
+      const response = await fetch("/api/assessment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(state),
+        body: JSON.stringify({ urls: validUrls }),
       });
-
-      const data = (await response.json()) as {
-        key?: string;
-        storage?: "local-only" | "neo4j";
-        saved?: boolean;
-        workspace?: SharedWorkspaceState;
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error || "The shared workspace could not be saved.");
-      }
-
-      setWorkspaceKey(data.key || state.key);
-      setWorkspaceStorage(data.storage || "unknown");
-
-      if (data.workspace) {
-        applyWorkspaceState(data.workspace);
-      }
-
-      if (data.saved) {
-        updateShareUrl(data.key || state.key);
-        toast.success("Workspace saved to Neo4j");
-        await checkConnection();
-        if ((data.key || state.key) && profile.websiteUrl.trim()) {
-          void loadInsights(data.key || state.key);
-        }
-      } else {
-        toast.message("Neo4j is not configured yet. Workspace stayed local.");
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The shared workspace could not be saved.";
-      toast.error(message);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Assessment failed.");
+      const results = (data.results || []).filter((r: Record<string, unknown>) => !r.error);
+      setAssessmentResults(results as TechnicalAuditResult[]);
+      setAssessmentSummary(data.summary || null);
+      setActionPlan(null);
+      toast.success(`Assessment complete for ${results.length} URL${results.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Assessment failed.");
     } finally {
-      setSharedLoading(false);
+      setAssessmentLoading(false);
     }
   }
 
-  async function checkConnection() {
-    setHealthLoading(true);
-
+  async function handleGenerateKeywords() {
+    setKeywordLoading(true);
     try {
-      const response = await fetch("/api/workspace/health");
-      const data = (await response.json()) as Neo4jHealthCheck & { error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error || "Neo4j health check failed.");
-      }
-
-      setNeo4jHealth(data);
-      setWorkspaceStorage(data.connected ? "neo4j" : data.storage);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Neo4j health check failed.";
-      setNeo4jHealth({
-        storage: "neo4j",
-        connected: false,
-        checkedAt: new Date().toISOString(),
-        message,
-        uri: null,
+      const response = await fetch("/api/keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile,
+          audit: assessmentResults[0] || null,
+          actionPlan,
+          pageDraft: null,
+          seed: keywordSeed,
+        }),
       });
+      const data = await response.json();
+      if (!response.ok || !data.headline) throw new Error(data.error || "Keyword map failed.");
+      setKeywordReport(data as KeywordReport);
+      toast.success("Keyword map generated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Keyword map failed.");
     } finally {
-      setHealthLoading(false);
+      setKeywordLoading(false);
     }
   }
-
-  async function loadInsights(rawKey?: string, refresh = false) {
-    const key = (rawKey || workspaceKey || createWorkspaceKey(profile)).trim();
-
-    if (!key) {
-      toast.error("Add a workspace key before loading Insights.");
-      return;
-    }
-
-    setInsightsLoading(true);
-
-    try {
-      const response = await fetch(
-        `/api/insights?key=${encodeURIComponent(key)}${refresh ? "&refresh=1" : ""}`
-      );
-      const data = (await response.json()) as {
-        key?: string;
-        storage?: "local-only" | "neo4j";
-        report?: InsightsReport | null;
-        message?: string;
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(data.error || "Insights could not be loaded.");
-      }
-
-      setWorkspaceKey(data.key || key);
-      setWorkspaceStorage(data.storage || "unknown");
-      setInsightsReport(data.report || null);
-
-      if (refresh && data.report) {
-        toast.success(data.message || "Insights refreshed");
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Insights could not be loaded.";
-      toast.error(message);
-    } finally {
-      setInsightsLoading(false);
-    }
-  }
-
-  const triggerInsightsLoad = useEffectEvent((rawKey?: string, refresh = false) => {
-    void loadInsights(rawKey, refresh);
-  });
-
-  useEffect(() => {
-    if (!hydrated) return;
-    if (activeTab !== "insights") return;
-    if (!workspaceKey && !profile.websiteUrl) return;
-    if (insightsReport || insightsLoading) return;
-
-    triggerInsightsLoad();
-  }, [
-    activeTab,
-    hydrated,
-    insightsLoading,
-    insightsReport,
-    profile.websiteUrl,
-    workspaceKey,
-  ]);
 
   async function handleGenerateStrategy() {
     setDraftLoading(true);
-
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind,
-          focusKeyword,
-          constraints,
-          ...profile,
-        }),
+        body: JSON.stringify({ kind, focusKeyword, constraints, ...profile }),
       });
-
-      const data = (await response.json()) as {
-        content?: string;
-        title?: string;
-        createdAt?: string;
-        error?: string;
-      };
-
-      if (!response.ok || !data.content || !data.createdAt || !data.title) {
-        throw new Error(data.error || "The draft could not be generated.");
-      }
-
+      const data = await response.json();
+      if (!response.ok || !data.content) throw new Error(data.error || "Draft failed.");
       const item: SavedStrategyDraft = {
         id: crypto.randomUUID(),
         kind,
@@ -699,339 +303,155 @@ export default function PersonalSeoWorkspace({
         focusKeyword,
         content: data.content,
       };
-
       startTransition(() => {
         setActiveDraft(item);
-        setHistory((current) => [item, ...current].slice(0, 12));
+        setHistory((c) => [item, ...c].slice(0, 12));
       });
-
       toast.success("Strategy draft generated");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The draft could not be generated.";
-      toast.error(message);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Draft failed.");
     } finally {
       setDraftLoading(false);
     }
   }
 
-  async function handleRunAudit() {
-    const url = auditUrl.trim() || profile.websiteUrl.trim();
-
-    if (!url) {
-      toast.error("Add a URL before running the audit.");
+  async function handleGenerateContent() {
+    if (!contentForm.keyword.trim()) {
+      toast.error("Enter a keyword to generate content.");
       return;
     }
-
-    setAuditLoading(true);
-
+    setContentLoading(true);
+    setContentResult(null);
     try {
-      const response = await fetch("/api/audit", {
+      const response = await fetch("/api/content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({
+          keyword: contentForm.keyword,
+          pageUrl: contentForm.pageUrl || undefined,
+          pageType: contentForm.pageType,
+          profile,
+        }),
       });
-
-      const data = (await response.json()) as TechnicalAuditResult & { error?: string };
-
-      if (!response.ok || !data.url) {
-        throw new Error(data.error || "The audit could not be completed.");
-      }
-
-      startTransition(() => {
-        setAuditResult(data);
-        setActionPlan(null);
-        setKeywordReport(null);
-        setAuditUrl(data.finalUrl);
-        setProfile((current) => ({
-          ...current,
-          websiteUrl: current.websiteUrl || data.finalUrl,
-          projectName: current.projectName || data.title,
-        }));
-      });
-
-      toast.success("Technical audit completed");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The audit could not be completed.";
-      toast.error(message);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Content generation failed.");
+      setContentResult(data);
+      toast.success("Content generated with multi-agent system");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Content generation failed.");
     } finally {
-      setAuditLoading(false);
+      setContentLoading(false);
     }
   }
 
   async function handleGenerateActions() {
-    if (!auditResult) {
-      toast.error("Run a technical audit before generating action items.");
+    if (!assessmentResults.length) {
+      toast.error("Run an assessment first.");
       return;
     }
-
     setActionLoading(true);
-
     try {
       const response = await fetch("/api/fix-actions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile,
-          audit: auditResult,
-        }),
+        body: JSON.stringify({ profile, audit: assessmentResults[0] }),
       });
-
-      const data = (await response.json()) as AuditActionPlan & { error?: string };
-
-      if (!response.ok || !data.headline) {
-        throw new Error(data.error || "The action plan could not be generated.");
-      }
-
-      setActionPlan(data);
+      const data = await response.json();
+      if (!response.ok || !data.headline) throw new Error(data.error || "Action plan failed.");
+      setActionPlan(data as AuditActionPlan);
       toast.success("Fix-action plan generated");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The action plan could not be generated.";
-      toast.error(message);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Action plan failed.");
     } finally {
       setActionLoading(false);
     }
   }
 
-  async function handleGenerateKeywords() {
-    setKeywordLoading(true);
-
-    try {
-      const response = await fetch("/api/keywords", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile,
-          audit: auditResult,
-          actionPlan,
-          pageDraft,
-          seed: keywordSeed,
-        }),
-      });
-
-      const data = (await response.json()) as KeywordReport & { error?: string };
-
-      if (!response.ok || !data.headline) {
-        throw new Error(data.error || "The keyword map could not be generated.");
-      }
-
-      setKeywordReport(data);
-      toast.success(
-        data.provider === "ahrefs"
-          ? "Keyword map generated with Ahrefs + local model"
-          : "Keyword map generated with the local fallback model"
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The keyword map could not be generated.";
-      toast.error(message);
-    } finally {
-      setKeywordLoading(false);
-    }
-  }
-
-  async function handleGeneratePageDraft() {
-    if (!pageForm.pageTitle.trim() || !pageForm.targetKeyword.trim()) {
-      toast.error("Add a page title and target keyword first.");
-      return;
-    }
-
-    setPageLoading(true);
-
-    try {
-      const response = await fetch("/api/new-page", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile,
-          ...pageForm,
-          audit: auditResult,
-          actionPlan,
-        }),
-      });
-
-      const data = (await response.json()) as GeneratedPageDraft & { error?: string };
-
-      if (!response.ok || !data.markdown) {
-        throw new Error(data.error || "The page draft could not be generated.");
-      }
-
-      setPageDraft(data);
-      toast.success("New page draft generated");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The page draft could not be generated.";
-      toast.error(message);
-    } finally {
-      setPageLoading(false);
-    }
-  }
-
-  async function copyText(text: string, successMessage: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(successMessage);
-    } catch {
-      toast.error("Clipboard access failed");
-    }
-  }
-
-  function updateShareUrl(key: string) {
-    const url = new URL(window.location.href);
-    url.searchParams.set("project", key);
-    window.history.replaceState({}, "", url.toString());
-  }
-
-  async function copyShareLink() {
-    const key = (workspaceKey || createWorkspaceKey(profile)).trim();
-
-    if (!key) {
-      toast.error("Add a workspace key first.");
-      return;
-    }
-
-    updateShareUrl(key);
-    await copyText(window.location.href, "Share link copied");
+  async function copyText(text: string, msg: string) {
+    try { await navigator.clipboard.writeText(text); toast.success(msg); }
+    catch { toast.error("Clipboard access failed"); }
   }
 
   function downloadText(content: string, filename: string) {
     const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
-
-    toast.success("Markdown exported");
-  }
-
-  function applyOpportunity(opportunity: NewPageOpportunity) {
-    setPageForm({
-      pageTitle: opportunity.title,
-      targetKeyword: opportunity.targetKeyword,
-      pageGoal: opportunity.reason,
-      pageType: opportunity.pageType,
-      notes: `Prompted from the latest action plan. Priority: ${opportunity.priority}.`,
-    });
-    setActiveTab("pages");
-    toast.success("Page idea moved into the generator");
-  }
-
-  function applyKeyword(keyword: string) {
-    setPageForm((current) => ({
-      ...current,
-      targetKeyword: keyword,
-      pageTitle: current.pageTitle || toTitleCase(keyword),
-    }));
-    setActiveTab("pages");
-    toast.success("Keyword moved into the page generator");
-  }
-
-  function loadSample() {
-    setProfile(sampleProfile);
-    setAuditUrl(sampleProfile.websiteUrl);
-    setWorkspaceKey(createWorkspaceKey(sampleProfile));
-    setKeywordSeed("running plan for beginners");
-    setInsightsReport(null);
-    setPageForm({
-      pageTitle: "Half marathon coaching for beginners",
-      targetKeyword: "half marathon coaching for beginners",
-      pageGoal: "Create a commercial landing page that also supports informational internal links.",
-      pageType: "service page",
-      notes: "Keep the offer approachable and realistic for non-elite runners.",
-    });
-    toast.success("Sample project loaded");
+    toast.success("Exported");
   }
 
   function resetWorkspace() {
     setProfile(emptyProfile);
-    setFocusKeyword("");
-    setConstraints("");
-    setActiveDraft(null);
     setHistory([]);
-    setAuditUrl("");
-    setAuditResult(null);
+    setActiveDraft(null);
+    setAssessmentResults([]);
+    setAssessmentSummary(null);
     setActionPlan(null);
-    setKeywordSeed("");
     setKeywordReport(null);
-    setInsightsReport(null);
-    setPageForm(emptyNewPageForm);
-    setPageDraft(null);
-    setWorkspaceKey("");
-    setWorkspaceStorage("unknown");
-    setNeo4jHealth(null);
-
-    window.localStorage.removeItem(PROFILE_STORAGE_KEY);
-    window.localStorage.removeItem(HISTORY_STORAGE_KEY);
-    window.localStorage.removeItem(AUDIT_STORAGE_KEY);
-    window.localStorage.removeItem(ACTIONS_STORAGE_KEY);
-    window.localStorage.removeItem(KEYWORDS_STORAGE_KEY);
-    window.localStorage.removeItem(PAGE_FORM_STORAGE_KEY);
-    window.localStorage.removeItem(PAGE_DRAFT_STORAGE_KEY);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("project");
-    window.history.replaceState({}, "", url.toString());
-
-    toast.success("Local workspace cleared");
+    setContentForm(emptyContentForm);
+    setContentResult(null);
+    [PROFILE_STORAGE_KEY, HISTORY_STORAGE_KEY, AUDIT_STORAGE_KEY, ACTIONS_STORAGE_KEY, KEYWORDS_STORAGE_KEY, CONTENT_FORM_STORAGE_KEY, CONTENT_RESULT_STORAGE_KEY].forEach((k) => window.localStorage.removeItem(k));
+    toast.success("Workspace cleared");
   }
 
+  // Derived
+  const strategyHtml = renderMarkdown(activeDraft?.content || "");
+
+  /* ─── Render ─── */
+
   return (
-    <main className="min-h-screen bg-[#050816] text-[#dbe8ff]">
+    <main className="min-h-screen bg-[#fafafa] text-[#34324a]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[248px] border-r border-[#15223c] bg-[#0e1525] md:flex md:flex-col">
-          <div className="flex items-center gap-3 border-b border-[#15223c] px-5 py-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#eef2f7] text-[#111827] shadow-sm">
+        {/* ─── Sidebar ─── */}
+        <aside className="hidden w-[240px] border-r border-[#f0f0f0] bg-white md:flex md:flex-col">
+          <div className="flex items-center gap-3 border-b border-[#f0f0f0] px-5 py-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#6933fa] text-white">
               <Sparkles className="size-4" />
             </div>
             <div>
-              <p className="text-lg font-semibold text-[#f8fbff]">SEO - Growth</p>
-              <p className="text-xs text-[#60708d]">SEO Health Check</p>
+              <p className="text-[15px] font-bold text-[#34324a]">SEO Studio</p>
+              <p className="text-[11px] text-[#6e6d74]">Growth Engine</p>
             </div>
           </div>
 
-          <div className="flex-1 px-3 py-5">
-            <div className="space-y-1">
-              {workflows
-                .filter((item) => item.id !== "settings")
-                .map((workflow) => (
-                  <button
-                    key={workflow.id}
-                    type="button"
-                    onClick={() => setActiveTab(workflow.id)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition",
-                      activeTab === workflow.id
-                        ? "bg-[#162846] text-[#7db0ff]"
-                        : "text-[#b4bfd2] hover:bg-[#121d33] hover:text-[#f8fbff]"
-                    )}
-                  >
-                    <span className={cn(activeTab === workflow.id ? "text-[#69a6ff]" : "text-[#6d7f9d]")}>
-                      {workflow.icon}
-                    </span>
-                    <span>{workflow.label}</span>
-                  </button>
-                ))}
+          <div className="flex-1 px-3 py-4">
+            <div className="space-y-0.5">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-all",
+                    activeTab === item.id
+                      ? "border-l-[3px] border-[#6933fa] bg-[#f7f5fc] text-[#6933fa]"
+                      : "border-l-[3px] border-transparent text-[#6e6d74] hover:bg-[#f7f5fc] hover:text-[#34324a]"
+                  )}
+                >
+                  <span className={cn(activeTab === item.id ? "text-[#6933fa]" : "text-[#b5b5b5]")}>
+                    {item.icon}
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
             </div>
 
-            <div className="mt-6 border-t border-[#15223c] pt-5">
-              <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#60708d]">
-                Settings
+            <div className="mt-6 border-t border-[#f0f0f0] pt-4">
+              <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b5b5b5]">
+                System
               </p>
               <button
                 type="button"
                 onClick={() => setActiveTab("settings")}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition",
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-all",
                   activeTab === "settings"
-                    ? "bg-[#162846] text-[#7db0ff]"
-                    : "text-[#b4bfd2] hover:bg-[#121d33] hover:text-[#f8fbff]"
+                    ? "border-l-[3px] border-[#6933fa] bg-[#f7f5fc] text-[#6933fa]"
+                    : "border-l-[3px] border-transparent text-[#6e6d74] hover:bg-[#f7f5fc] hover:text-[#34324a]"
                 )}
               >
-                <span className={cn(activeTab === "settings" ? "text-[#69a6ff]" : "text-[#6d7f9d]")}>
+                <span className={cn(activeTab === "settings" ? "text-[#6933fa]" : "text-[#b5b5b5]")}>
                   <Settings2 className="size-4" />
                 </span>
                 <span>Settings</span>
@@ -1040,1322 +460,425 @@ export default function PersonalSeoWorkspace({
           </div>
         </aside>
 
+        {/* ─── Main content ─── */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-[58px] items-center justify-between border-b border-[#d7dde8] bg-[#eef2f7] px-4 text-[#111827] shadow-[0_1px_0_rgba(15,23,42,0.08)]">
+          {/* Top bar */}
+          <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#f0f0f0] bg-white px-4 sm:px-6">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setActiveTab("audit")}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#4f46e5] transition hover:bg-[#dfe7f4]"
-              >
-                <ArrowLeft className="size-5" />
-              </button>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#ffffff] text-[#6b7280] shadow-sm">
-                <Sparkles className="size-4" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f7f5fc] text-[#6933fa]">
+                {navItems.find((n) => n.id === activeTab)?.icon || <Settings2 className="size-4" />}
               </div>
-              <span className="text-[15px] font-semibold">SEO - Growth</span>
+              <div>
+                <h1 className="text-[15px] font-semibold text-[#34324a]">
+                  {navItems.find((n) => n.id === activeTab)?.label || "Settings"}
+                </h1>
+              </div>
             </div>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[#4b5563] transition hover:bg-[#dfe7f4]"
-            >
-              <EllipsisVertical className="size-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-[#f0f0f0] bg-white px-3 py-1.5 text-[11px] font-medium text-[#6e6d74]">
+                {profile.projectName || "No project"}
+              </span>
+            </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-            <motion.section
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-              className="mb-5"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="inline-flex items-center gap-2 text-[#69a6ff]">
-                    {activeView.icon}
-                    <h1 className="text-[17px] font-semibold text-[#f8fbff]">{activeView.label}</h1>
-                  </div>
-                  <p className="mt-1 text-[13px] text-[#7f8ea8]">{activeView.description}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-md border border-[#1c2a45] bg-[#0d1528] px-3 py-1.5 text-[11px] font-medium text-[#93a4bf]">
-                    Storage: {neo4jHealth?.connected ? "neo4j connected" : workspaceStorage === "unknown" ? "not checked" : workspaceStorage}
-                  </span>
-                  <span className="rounded-md border border-[#1c2a45] bg-[#0d1528] px-3 py-1.5 text-[11px] font-medium text-[#93a4bf]">
-                    Ahrefs: {keywordProvider === "ahrefs" ? "live" : "fallback"}
-                  </span>
-                </div>
-              </div>
-
-              {legacyPath ? (
-                <div className="mt-3 rounded-xl border border-[#1c2a45] bg-[#0d1528] px-4 py-3 text-[12px] text-[#8ea0bc]">
-                  Opened from legacy path <span className="font-semibold text-[#dbe8ff]">{legacyPath}</span>.
-                </div>
-              ) : null}
-            </motion.section>
-
-            {activeTab === "settings" ? (
-              <motion.section
-                key="settings-shell"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.24 }}
-                className="mb-6 space-y-6"
-              >
-                <div className="grid gap-4 lg:grid-cols-4">
-                  <StatCard label="Saved assets" value={String(totalAssets).padStart(2, "0")} />
-                  <StatCard label="Strategy drafts" value={String(history.length).padStart(2, "0")} />
-                  <StatCard label="Audit score" value={auditResult ? String(auditResult.score) : "--"} />
-                  <StatCard label="Page drafts" value={pageDraft ? "01" : "00"} />
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-4">
-                  {operationsOverview.map((item) => (
-                    <MiniInfoCard key={item.label} label={item.label} value={item.detail} />
-                  ))}
-                </div>
-
-                <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-                  <PanelCard
-                    eyebrow="Project settings"
-                    title="Give SEO - Growth real context"
-                    description="This is the shared profile used across audits, actions, keyword mapping, and page drafting."
-                    actions={
-                      <>
-                        <GhostButton onClick={loadSample}>
-                          <Sparkles className="size-4" />
-                          Load sample
-                        </GhostButton>
-                        <GhostButton onClick={resetWorkspace}>
-                          <RefreshCcw className="size-4" />
-                          Clear local data
-                        </GhostButton>
-                      </>
-                    }
-                  >
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field
-                        label="Project name"
-                        icon={<NotebookPen className="size-4" />}
-                        value={profile.projectName}
-                        onChange={(value) => setProfile((current) => ({ ...current, projectName: value }))}
-                        placeholder="Personal brand, side project, or focused site name"
-                      />
-                      <Field
-                        label="Website URL"
-                        icon={<Globe2 className="size-4" />}
-                        value={profile.websiteUrl}
-                        onChange={(value) => {
-                          setProfile((current) => ({ ...current, websiteUrl: value }));
-                          setAuditUrl(value);
-                        }}
-                        placeholder="https://example.com"
-                      />
-                      <LongField
-                        label="Audience"
-                        value={profile.audience}
-                        onChange={(value) => setProfile((current) => ({ ...current, audience: value }))}
-                        placeholder="Who the site serves, what they already know, and where they get stuck."
-                      />
-                      <LongField
-                        label="Offer"
-                        value={profile.offer}
-                        onChange={(value) => setProfile((current) => ({ ...current, offer: value }))}
-                        placeholder="What the site sells, teaches, or helps users accomplish."
-                      />
-                      <LongField
-                        label="Differentiators"
-                        value={profile.differentiators}
-                        onChange={(value) => setProfile((current) => ({ ...current, differentiators: value }))}
-                        placeholder="Why this project deserves attention over alternatives."
-                      />
-                      <LongField
-                        label="Goals"
-                        value={profile.goals}
-                        onChange={(value) => setProfile((current) => ({ ...current, goals: value }))}
-                        placeholder="Traffic, conversion, authority, email signups, lead flow, or category ownership."
-                      />
-                      <LongField
-                        label="Voice"
-                        value={profile.voice}
-                        onChange={(value) => setProfile((current) => ({ ...current, voice: value }))}
-                        placeholder="Direct, warm, analytical, premium, practical..."
-                      />
-                      <LongField
-                        label="Notes"
-                        value={profile.notes}
-                        onChange={(value) => setProfile((current) => ({ ...current, notes: value }))}
-                        placeholder="Any guardrails, constraints, or business context the assistant should respect."
-                      />
-                    </div>
-                  </PanelCard>
-
-                  <PanelCard
-                    eyebrow="Shared workspace"
-                    title="Neo4j and sharing controls"
-                    description="Use a stable key so the team can open the same project state when Neo4j is connected to a public host."
-                  >
-                    <div className="grid gap-4">
-                      <Field
-                        label="Workspace key"
-                        icon={<Database className="size-4" />}
-                        value={workspaceKey}
-                        onChange={setWorkspaceKey}
-                        placeholder="northstar-running-notes"
-                      />
-                      <div className="flex flex-wrap gap-3">
-                        <PrimaryButton onClick={() => void loadSharedWorkspace()} disabled={sharedLoading}>
-                          <Database className="size-4" />
-                          {sharedLoading ? "Loading..." : "Load shared"}
-                        </PrimaryButton>
-                        <GhostButton onClick={() => void saveSharedWorkspace()}>
-                          <Database className="size-4" />
-                          {sharedLoading ? "Saving..." : "Save shared"}
-                        </GhostButton>
-                        <GhostButton onClick={() => void copyShareLink()}>
-                          <Link2 className="size-4" />
-                          Copy link
-                        </GhostButton>
-                        <GhostButton onClick={() => void checkConnection()}>
-                          <ShieldCheck className="size-4" />
-                          {healthLoading ? "Checking..." : "Check connection"}
-                        </GhostButton>
-                        <GhostButton onClick={() => void loadInsights(undefined, true)}>
-                          <RefreshCcw className="size-4" />
-                          {insightsLoading ? "Refreshing..." : "Sync insights"}
-                        </GhostButton>
-                      </div>
-                      <div className="grid gap-3">
-                        <MiniInfoCard
-                          label="Workspace status"
-                          value={
-                            neo4jHealth?.message ||
-                            (workspaceStorage === "neo4j"
-                              ? "Neo4j is connected and shared workspaces are available."
-                              : "The app is still local-first. Use a public Neo4j instance like Aura for deployed team sharing.")
-                          }
-                        />
-                        <MiniInfoCard
-                          label="Insights sync"
-                          value={
-                            insightsReport?.syncedAt
-                              ? `Latest baseline synced at ${new Date(insightsReport.syncedAt).toLocaleString()}. Daily refresh runs through the deployed Vercel cron and stores what changed in Neo4j.`
-                              : "The first successful Insights sync will save a baseline site snapshot in Neo4j so future runs can compare what changed."
-                          }
-                        />
-                        <MiniInfoCard
-                          label="Recommended flow"
-                          value="Run PageSpeed, review Insights for what changed, shape Basic SEO keywords, convert issues into Advanced actions, then ship the next Page draft."
-                        />
-                      </div>
-                    </div>
-                  </PanelCard>
-                </div>
-              </motion.section>
-            ) : null}
-
+          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
             <AnimatePresence mode="wait">
-          {activeTab === "strategy" ? (
-            <motion.section
-              key="strategy"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.28 }}
-              className="mt-6 grid gap-6 xl:grid-cols-[0.38fr_0.62fr]"
-            >
-              <PanelCard
-                eyebrow="Dashboard"
-                title="Generate operator-ready strategy drafts"
-                description="Use the dashboard to shape content calendars, briefs, refreshes, and high-level SEO direction."
-              >
-                <div className="grid gap-3">
-                  {deliverables.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setKind(item.id)}
-                        className={cn(
-                          "rounded-[1.4rem] border p-4 text-left transition-all",
-                          kind === item.id
-                            ? "border-[#d1582a]/35 bg-[#2a1d18] text-white"
-                            : "border-[#1f2d4b] bg-[#10192d] text-[#f8fbff] hover:border-[#315aa4]"
-                        )}
-                      >
-                      <p
-                        className={cn(
-                          "text-[11px] font-semibold uppercase tracking-[0.22em]",
-                          kind === item.id ? "text-white/56" : "text-[#7db0ff]"
-                        )}
-                      >
-                        {item.eyebrow}
-                      </p>
-                      <p className="mt-2 text-base font-semibold">{item.label}</p>
-                      <p
-                        className={cn(
-                          "mt-2 text-sm leading-6",
-                          kind === item.id ? "text-white/72" : "text-[#6f5a4d]"
-                        )}
-                      >
-                        {item.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
 
-                <div className="mt-5 grid gap-4">
-                  <Field
-                    label="Focus keyword"
-                    icon={<Target className="size-4" />}
-                    value={focusKeyword}
-                    onChange={setFocusKeyword}
-                    placeholder="Optional topic or target keyword"
-                  />
-                  <LongField
-                    label="Constraints"
-                    value={constraints}
-                    onChange={setConstraints}
-                    placeholder="Required angle, exclusions, pacing, format preferences, or business constraints."
-                  />
-                </div>
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <PrimaryButton onClick={handleGenerateStrategy} disabled={draftLoading}>
-                    {draftLoading ? <WandSparkles className="size-4 animate-pulse" /> : <Sparkles className="size-4" />}
-                    {draftLoading ? "Generating draft..." : "Generate draft"}
-                    <ArrowRight className="size-4" />
-                  </PrimaryButton>
-                </div>
-
-                <div className="mt-6 border-t border-[#1f2d4b] pt-5">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                        Recent drafts
-                      </p>
-                      <p className="mt-1 text-sm text-[#7f8ea8]">Switch between the latest saved outputs.</p>
-                    </div>
-                    <History className="size-4 text-[#7db0ff]" />
+              {/* ═══════════════════════════════════════════════ */}
+              {/*                  DASHBOARD TAB                  */}
+              {/* ═══════════════════════════════════════════════ */}
+              {activeTab === "dashboard" ? (
+                <motion.div
+                  key="dashboard"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  {/* KPI Row */}
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard label="Assessment Score" value={assessmentSummary ? String(assessmentSummary.averageScore) : "--"} change={assessmentSummary ? `${assessmentSummary.totalUrls} URLs` : "Not run"} positive={assessmentSummary ? assessmentSummary.averageScore >= 70 : null} />
+                    <KpiCard label="Issues Found" value={assessmentSummary ? String(assessmentSummary.totalIssues) : "--"} change={assessmentSummary?.commonIssues[0] || "Run assessment"} positive={assessmentSummary ? assessmentSummary.totalIssues < 10 : null} />
+                    <KpiCard label="Keywords Mapped" value={keywordReport ? String(keywordReport.clusters.reduce((s, c) => s + c.suggestions.length, 0)) : "--"} change={keywordReport?.provider === "ahrefs" ? "Ahrefs live" : "Local model"} positive={null} />
+                    <KpiCard label="Strategy Drafts" value={String(history.length).padStart(2, "0")} change={activeDraft ? activeDraft.kind.replace(/-/g, " ") : "None yet"} positive={null} />
                   </div>
 
-                  <div className="space-y-3">
-                    {history.length ? (
-                      history.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setActiveDraft(item)}
-                          className={cn(
-                            "w-full rounded-[1.3rem] border px-4 py-3 text-left transition-all",
-                            activeDraft?.id === item.id
-                              ? "border-[#d1582a]/35 bg-[#2a1d18] text-white"
-                              : "border-[#1f2d4b] bg-[#10192d] text-[#f8fbff] hover:border-[#315aa4]"
-                          )}
-                        >
-                          <p
-                            className={cn(
-                              "text-[11px] font-semibold uppercase tracking-[0.22em]",
-                              activeDraft?.id === item.id ? "text-white/56" : "text-[#7db0ff]"
-                            )}
-                          >
-                            {item.kind.replace(/-/g, " ")}
-                          </p>
-                          <p className="mt-2 text-sm font-semibold">{item.title}</p>
-                          <p
-                            className={cn(
-                              "mt-2 text-xs",
-                              activeDraft?.id === item.id ? "text-white/58" : "text-[#6f5a4d]"
-                            )}
-                          >
-                            {new Date(item.createdAt).toLocaleString()}
-                          </p>
-                        </button>
-                      ))
-                    ) : (
-                      <EmptyState
-                        title="Your first strategy draft will land here"
-                        description="Start with a strategy snapshot if you want the quickest path to a practical SEO plan."
-                      />
-                    )}
-                  </div>
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                eyebrow="Draft Canvas"
-                title={activeDraft ? activeDraft.title : "Generate a draft to begin"}
-                description="Rendered markdown stays easy to scan, copy, and export."
-                actions={
-                  activeDraft ? (
-                    <>
-                      <GhostButton
-                        onClick={() => copyText(activeDraft.content, "Draft copied to clipboard")}
-                      >
-                        <Copy className="size-4" />
-                        Copy markdown
-                      </GhostButton>
-                      <GhostButton
-                        onClick={() =>
-                          downloadText(
-                            activeDraft.content,
-                            `${activeDraft.kind}-${activeDraft.createdAt.slice(0, 10)}.md`
-                          )
-                        }
-                      >
-                        <Download className="size-4" />
-                        Download .md
-                      </GhostButton>
-                    </>
-                  ) : null
-                }
-              >
-                {activeDraft ? (
-                  <div className="rounded-[1.6rem] border border-[#1f2d4b] bg-[#0b1426] p-5 sm:p-6">
-                    <div
-                      className="article-content font-sans"
-                      dangerouslySetInnerHTML={{ __html: strategyHtml }}
-                    />
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <HintCard
-                      icon={<BookText className="size-5" />}
-                      title="Start with the landscape"
-                      description="A strategy snapshot turns vague goals into a tight list of next moves."
-                    />
-                    <HintCard
-                      icon={<Target className="size-5" />}
-                      title="Sharpen with a keyword"
-                      description="Optional focus keywords help the draft pull toward a specific opportunity."
-                    />
-                    <HintCard
-                      icon={<NotebookPen className="size-5" />}
-                      title="Keep notes real"
-                      description="Add business constraints, time limits, and what you actually need the site to do."
-                    />
-                  </div>
-                )}
-              </PanelCard>
-            </motion.section>
-          ) : null}
-
-          {activeTab === "audit" ? (
-            <motion.section
-              key="audit"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.28 }}
-              className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
-            >
-              <PanelCard
-                eyebrow="PageSpeed Insights"
-                title="Full Lighthouse-style audit with opportunities, diagnostics & core technical SEO"
-                description="Run the open-source page audit from one test URL, review the current state, and turn issues into action items the team can ship."
-              >
-                <Field
-                  label="Test URL"
-                  icon={<Globe2 className="size-4" />}
-                  value={auditUrl}
-                  onChange={setAuditUrl}
-                  placeholder="https://example.com/page"
-                />
-
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <div className="inline-flex rounded-lg border border-[#1f2d4b] bg-[#0b1426] p-1">
-                    <button
-                      type="button"
-                      onClick={() => setAuditDevice("mobile")}
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium transition",
-                        auditDevice === "mobile"
-                          ? "bg-[#274b8c] text-[#dce7ff]"
-                          : "text-[#7f8ea8] hover:text-[#dbe8ff]"
-                      )}
-                    >
-                      <Smartphone className="size-3.5" />
-                      Mobile
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAuditDevice("desktop")}
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px] font-medium transition",
-                        auditDevice === "desktop"
-                          ? "bg-[#274b8c] text-[#dce7ff]"
-                          : "text-[#7f8ea8] hover:text-[#dbe8ff]"
-                      )}
-                    >
-                      <Monitor className="size-3.5" />
-                      Desktop
-                    </button>
-                  </div>
-                  <PrimaryButton onClick={handleRunAudit} disabled={auditLoading}>
-                    {auditLoading ? <WandSparkles className="size-4 animate-pulse" /> : <FileSearch className="size-4" />}
-                    {auditLoading ? "Analyzing..." : "Analyze"}
-                  </PrimaryButton>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => profile.websiteUrl && setAuditUrl(profile.websiteUrl)}
-                    className="rounded-md border border-[#1f2d4b] bg-[#111a2d] px-3 py-1.5 text-[12px] text-[#91a2bf] transition hover:border-[#2c4f92] hover:text-[#dbe8ff]"
-                  >
-                    Homepage
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => auditResult?.finalUrl && setAuditUrl(auditResult.finalUrl)}
-                    className="rounded-md border border-[#1f2d4b] bg-[#111a2d] px-3 py-1.5 text-[12px] text-[#91a2bf] transition hover:border-[#2c4f92] hover:text-[#dbe8ff]"
-                  >
-                    Current page
-                  </button>
-                </div>
-
-                <div className="mt-6 grid gap-3">
-                  <MiniInfoCard
-                    label="Checks"
-                    value="Titles, canonicals, headings, robots, sitemap, schema, media, links, and action-ready HTML evidence."
-                  />
-                  <MiniInfoCard
-                    label="Runtime"
-                    value={auditLoading ? "Analyzing performance, SEO, accessibility & best practices..." : "Live page HTML fetched directly at request time"}
-                  />
-                  <MiniInfoCard
-                    label="Output"
-                    value="Score, quick wins, major fixes, issue buckets, and current-vs-to-be recommendations"
-                  />
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                eyebrow="Diagnostics"
-                title={auditResult ? auditResult.title : auditLoading ? "Running Lighthouse audit..." : "Run an audit to inspect a page"}
-                description={
-                  auditResult
-                    ? `${auditResult.status} at ${auditResult.score}/100 for ${auditResult.finalUrl}`
-                    : auditLoading
-                      ? "Analyzing performance, SEO, accessibility & best practices. This usually takes a few seconds."
-                      : "Once the audit completes, this area becomes your technical SEO review board."
-                }
-              >
-                {auditResult ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <MetricCard label="Score" value={String(auditResult.score)} detail={auditResult.status} />
-                      <MetricCard
-                        label="Issues"
-                        value={String(
-                          auditResult.insights.technicalSeo.length +
-                            auditResult.insights.pagePerformance.length +
-                            auditResult.insights.contentQuality.length
-                        )}
-                        detail="Across all buckets"
-                      />
-                      <MetricCard
-                        label="Word count"
-                        value={String(auditResult.metrics.wordCount)}
-                        detail="Visible copy"
-                      />
-                      <MetricCard
-                        label="Internal links"
-                        value={String(auditResult.metrics.internalLinks)}
-                        detail="Detected on page"
-                      />
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-                      <MiniInfoCard
-                        label="Current title"
-                        value={auditResult.snapshot.titleTag || "Missing title tag"}
-                      />
-                      <MiniInfoCard
-                        label="Current meta"
-                        value={auditResult.snapshot.metaDescription || "Missing meta description"}
-                      />
-                      <MiniInfoCard
-                        label="Current H1"
-                        value={auditResult.snapshot.h1s[0] || "No H1 found"}
-                      />
-                      <MiniInfoCard
-                        label="Canonical"
-                        value={auditResult.snapshot.canonical || "Missing canonical"}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <SimpleListCard
-                        title="Quick wins"
-                        badge={`${auditResult.quickWins.length}`}
-                        items={auditResult.quickWins}
-                      />
-                      <SimpleListCard
-                        title="Major fixes"
-                        badge={`${auditResult.majorFixes.length}`}
-                        items={auditResult.majorFixes}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 xl:grid-cols-3">
-                      <IssueBucketCard
-                        title="Technical SEO"
-                        issues={auditResult.insights.technicalSeo}
-                        emptyMessage="No major technical blockers were found."
-                      />
-                      <IssueBucketCard
-                        title="Performance"
-                        issues={auditResult.insights.pagePerformance}
-                        emptyMessage="The page structure looks relatively lean from the HTML pass."
-                      />
-                      <IssueBucketCard
-                        title="Content Quality"
-                        issues={auditResult.insights.contentQuality}
-                        emptyMessage="The content signals look healthy for this first-pass audit."
-                      />
-                    </div>
-
-                    <div>
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                            HTML evidence
-                          </p>
-                          <p className="mt-1 text-sm text-[#7f8ea8]">
-                            Current markup snapshots with the direction of the recommended fix.
-                          </p>
-                        </div>
+                  <div className="grid gap-6 xl:grid-cols-2">
+                    {/* Keywords section */}
+                    <PanelCard title="Keyword Intelligence" description="Generate keyword clusters from your project context.">
+                      <Field label="Seed topic" icon={<Target className="size-4" />} value={keywordSeed} onChange={setKeywordSeed} placeholder="e.g. ai image upscaler, watermark removal..." />
+                      <div className="mt-4 flex gap-3">
+                        <PrimaryButton onClick={handleGenerateKeywords} disabled={keywordLoading}>
+                          {keywordLoading ? <RefreshCcw className="size-4 animate-spin" /> : <Target className="size-4" />}
+                          {keywordLoading ? "Generating..." : "Generate keywords"}
+                        </PrimaryButton>
                       </div>
-
-                      {auditResult.htmlEvidence.length ? (
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          {auditResult.htmlEvidence.map((item) => (
-                            <div
-                              key={`${item.label}-${item.current}`}
-                            className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4"
-                            >
-                              <p className="text-sm font-semibold text-[#f8fbff]">{item.label}</p>
-                              <div className="mt-3 space-y-3 text-sm leading-6 text-[#c0d0e7]">
-                                <div>
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                                    Current
-                                  </p>
-                                  <code className="mt-2 block rounded-xl bg-[#152340] px-3 py-3 text-xs text-[#cfe0ff]">
-                                    {item.current}
-                                  </code>
-                                </div>
-                                <div>
-                                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                                    To-be
-                                  </p>
-                                  <code className="mt-2 block rounded-xl bg-[#152340] px-3 py-3 text-xs text-[#cfe0ff]">
-                                    {item.solution}
-                                  </code>
-                                </div>
-                                <p>{item.why}</p>
+                      {keywordReport ? (
+                        <div className="mt-5 space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            {keywordReport.quickWins.map((kw) => (
+                              <span key={kw} className="rounded-full bg-[#f7f5fc] px-3 py-1 text-xs font-medium text-[#6933fa]">{kw}</span>
+                            ))}
+                          </div>
+                          {keywordReport.clusters.map((cluster) => (
+                            <div key={cluster.label} className="rounded-xl border border-[#f0f0f0] bg-white p-4">
+                              <p className="text-sm font-semibold text-[#34324a]">{cluster.label}</p>
+                              <p className="mt-1 text-xs text-[#6e6d74]">{cluster.description}</p>
+                              <div className="mt-3 space-y-1">
+                                {cluster.suggestions.slice(0, 5).map((s) => (
+                                  <div key={s.keyword} className="flex items-center justify-between rounded-lg bg-[#fafafa] px-3 py-2 text-sm">
+                                    <span>{s.keyword}</span>
+                                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                                      s.intent === "commercial" ? "bg-[#e8e8fc] text-[#6933fa]" :
+                                      s.intent === "informational" ? "bg-[#e6f7ee] text-[#27AE60]" :
+                                      s.intent === "comparison" ? "bg-[#fef3e2] text-[#F39C12]" :
+                                      "bg-[#f0f0f0] text-[#6e6d74]"
+                                    )}>{s.intent}</span>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <EmptyState
-                          title="No HTML evidence cards were needed"
-                          description="This usually means the audit surfaced fewer markup-specific corrections."
-                        />
-                      )}
-                    </div>
-                  </div>
-                ) : auditLoading ? (
-                  <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[1.2rem] border border-[#1f2d4b] bg-[#0b1426] text-center">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#2a467d]">
-                      <RefreshCcw className="size-7 animate-spin text-[#5f93ff]" />
-                    </div>
-                    <p className="mt-5 text-[15px] font-medium text-[#dbe8ff]">Running Lighthouse audit...</p>
-                    <p className="mt-2 max-w-md text-[13px] leading-6 text-[#7f8ea8]">
-                      Analyzing performance, SEO, accessibility & best practices with the current open-source audit stack.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <HintCard
-                      icon={<FileSearch className="size-5" />}
-                      title="Audit one page first"
-                      description="Start with your most important commercial or category page before checking supporting URLs."
-                    />
-                    <HintCard
-                      icon={<TriangleAlert className="size-5" />}
-                      title="Expect practical findings"
-                      description="The output separates smaller fixes from structural issues so you can sequence work sensibly."
-                    />
-                    <HintCard
-                      icon={<CheckCircle2 className="size-5" />}
-                      title="Use it as the source of truth"
-                      description="The next workflows pull from the latest audit so you do not need to re-explain what is wrong."
-                    />
-                  </div>
-                )}
-              </PanelCard>
-            </motion.section>
-          ) : null}
+                      ) : null}
+                    </PanelCard>
 
-          {activeTab === "insights" ? (
-            <motion.section
-              key="insights"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.28 }}
-              className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
-            >
-              <PanelCard
-                eyebrow="Insights"
-                title="Track what changed across the site"
-                description="This tab stores site snapshots in Neo4j, compares them day over day, and surfaces new pages, content shifts, and warning signals the team should review."
-              >
-                <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
-                  <p className="text-sm font-semibold text-[#f8fbff]">Workspace and crawl source</p>
-                  <div className="mt-4 grid gap-3">
-                    <MiniInfoCard
-                      label="Workspace key"
-                      value={workspaceKey || createWorkspaceKey(profile) || "Set in Settings"}
-                    />
-                    <MiniInfoCard
-                      label="Tracked website"
-                      value={profile.websiteUrl || "Add the website URL in Settings to initialize Insights"}
-                    />
-                    <MiniInfoCard
-                      label="Neo4j status"
-                      value={
-                        neo4jHealth?.message ||
-                        "Run a connection check to confirm the app can save shared snapshots."
+                    {/* Strategy section */}
+                    <PanelCard title="Content Strategy" description="Generate SEO strategy drafts, content calendars, and briefs.">
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["strategy-snapshot", "content-calendar", "article-brief", "content-audit"] as DraftKind[]).map((k) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => setKind(k)}
+                            className={cn(
+                              "rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-all",
+                              kind === k
+                                ? "border-[#6933fa] bg-[#f7f5fc] text-[#6933fa]"
+                                : "border-[#f0f0f0] bg-white text-[#6e6d74] hover:border-[#e8e8fc]"
+                            )}
+                          >
+                            {k.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-4">
+                        <Field label="Focus keyword" icon={<Search className="size-4" />} value={focusKeyword} onChange={setFocusKeyword} placeholder="Optional topic or target keyword" />
+                      </div>
+                      <div className="mt-4 flex gap-3">
+                        <PrimaryButton onClick={handleGenerateStrategy} disabled={draftLoading}>
+                          {draftLoading ? <RefreshCcw className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                          {draftLoading ? "Generating..." : "Generate draft"}
+                        </PrimaryButton>
+                      </div>
+                      {activeDraft ? (
+                        <div className="mt-5">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-[#34324a]">{activeDraft.title}</p>
+                            <div className="flex gap-2">
+                              <GhostButton onClick={() => copyText(activeDraft.content, "Copied")}>
+                                <Copy className="size-3.5" />
+                              </GhostButton>
+                              <GhostButton onClick={() => downloadText(activeDraft.content, `${activeDraft.kind}.md`)}>
+                                <Download className="size-3.5" />
+                              </GhostButton>
+                            </div>
+                          </div>
+                          <div className="mt-3 max-h-[400px] overflow-y-auto rounded-xl border border-[#f0f0f0] bg-white p-4">
+                            <div className="article-content" dangerouslySetInnerHTML={{ __html: strategyHtml }} />
+                          </div>
+                        </div>
+                      ) : null}
+                    </PanelCard>
+                  </div>
+
+                  {/* GEO Optimization tips */}
+                  <PanelCard title="GEO Optimization Insights" description="Geographic and generative engine optimization strategies.">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <InfoCard icon={<Globe2 className="size-5" />} title="Multi-region targeting" description="Use hreflang tags, locale-specific content, and CDN edge delivery to serve the right content for each geography." />
+                      <InfoCard icon={<Zap className="size-5" />} title="AI Search readiness" description="Structure content with clear Q&A patterns, data tables, and authoritative citations to appear in AI-generated search results." />
+                      <InfoCard icon={<Target className="size-5" />} title="Local schema markup" description="Add LocalBusiness, FAQ, and HowTo schema to improve visibility in both traditional and AI-driven search surfaces." />
+                    </div>
+                  </PanelCard>
+                </motion.div>
+              ) : null}
+
+              {/* ═══════════════════════════════════════════════ */}
+              {/*              SEO ASSESSMENT TAB                 */}
+              {/* ═══════════════════════════════════════════════ */}
+              {activeTab === "assessment" ? (
+                <motion.div
+                  key="assessment"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  {/* URL input */}
+                  <PanelCard title="Run SEO Assessment" description="Add multiple URLs to run a comprehensive technical and content assessment.">
+                    <div className="space-y-3">
+                      {assessmentUrls.map((url, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <div className="flex-1">
+                            <input
+                              value={url}
+                              onChange={(e) => {
+                                const next = [...assessmentUrls];
+                                next[idx] = e.target.value;
+                                setAssessmentUrls(next);
+                              }}
+                              placeholder="https://example.com/page"
+                              className="h-11 w-full rounded-xl border border-[#f0f0f0] bg-white px-4 text-sm text-[#34324a] outline-none transition placeholder:text-[#b5b5b5] focus:border-[#6933fa] focus:ring-2 focus:ring-[#6933fa]/10"
+                            />
+                          </div>
+                          {assessmentUrls.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => setAssessmentUrls(assessmentUrls.filter((_, i) => i !== idx))}
+                              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#f0f0f0] text-[#b5b5b5] transition hover:border-[#E74C3C] hover:text-[#E74C3C]"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <GhostButton onClick={() => setAssessmentUrls([...assessmentUrls, ""])}>
+                        <Plus className="size-4" />
+                        Add URL
+                      </GhostButton>
+                      <PrimaryButton onClick={handleRunAssessment} disabled={assessmentLoading}>
+                        {assessmentLoading ? <RefreshCcw className="size-4 animate-spin" /> : <FileSearch className="size-4" />}
+                        {assessmentLoading ? "Analyzing..." : "Run Assessment"}
+                      </PrimaryButton>
+                    </div>
+                  </PanelCard>
+
+                  {/* Summary */}
+                  {assessmentSummary ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      <KpiCard label="Average Score" value={String(assessmentSummary.averageScore)} change={`${assessmentSummary.totalUrls} URLs assessed`} positive={assessmentSummary.averageScore >= 70} />
+                      <KpiCard label="Total Issues" value={String(assessmentSummary.totalIssues)} change="Across all URLs" positive={assessmentSummary.totalIssues < 10} />
+                      <KpiCard label="Common Issues" value={String(assessmentSummary.commonIssues.length)} change={assessmentSummary.commonIssues[0] || "None"} positive={assessmentSummary.commonIssues.length === 0} />
+                      <div className="card-shadow flex flex-col justify-center rounded-2xl border border-[#f0f0f0] bg-white p-4">
+                        <PrimaryButton onClick={handleGenerateActions} disabled={actionLoading || !assessmentResults.length}>
+                          {actionLoading ? <RefreshCcw className="size-4 animate-spin" /> : <Zap className="size-4" />}
+                          {actionLoading ? "Building plan..." : "Generate Fix Plan"}
+                        </PrimaryButton>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Results per URL */}
+                  {assessmentResults.map((result, idx) => (
+                    <AssessmentResultCard
+                      key={result.url + idx}
+                      result={result}
+                      onClickIssue={(issue, evidence) =>
+                        setSelectedIssue({ issue, evidence, url: result.finalUrl })
                       }
                     />
-                  </div>
-                </div>
+                  ))}
 
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <PrimaryButton
-                    onClick={() => void loadInsights(undefined, true)}
-                    disabled={insightsLoading}
-                  >
-                    {insightsLoading ? (
-                      <WandSparkles className="size-4 animate-pulse" />
-                    ) : (
-                      <RefreshCcw className="size-4" />
-                    )}
-                    {insightsLoading ? "Refreshing insights..." : "Refresh site snapshot"}
-                  </PrimaryButton>
-                  <GhostButton onClick={() => void checkConnection()}>
-                    <Database className="size-4" />
-                    {healthLoading ? "Checking connection..." : "Check Neo4j"}
-                  </GhostButton>
-                </div>
-
-                <div className="mt-6 grid gap-3">
-                  <MiniInfoCard
-                    label="First run"
-                    value="The first successful refresh creates the baseline snapshot for the main product in Neo4j."
-                  />
-                  <MiniInfoCard
-                    label="Daily refresh"
-                    value="The deployed app includes a daily Vercel cron that refreshes stored snapshots and preserves site history."
-                  />
-                  <MiniInfoCard
-                    label="Diff logic"
-                    value="Insights compare new snapshots with the previous baseline to flag new pages, removals, title/meta shifts, status changes, noindex changes, and meaningful content edits."
-                  />
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                eyebrow="What Changed"
-                title={
-                  insightsReport?.syncedAt
-                    ? `Latest snapshot from ${new Date(insightsReport.syncedAt).toLocaleString()}`
-                    : insightsLoading
-                      ? "Building the first site snapshot..."
-                      : "Run the first snapshot to start tracking changes"
-                }
-                description={
-                  insightsReport
-                    ? insightsReport.hasBaseline
-                      ? "Changes below compare the latest stored snapshot with the previous day’s crawl."
-                      : "This is the baseline snapshot. The next refresh will start showing what changed."
-                    : "Once a shared workspace is connected, this panel becomes your change log for the site."
-                }
-              >
-                {insightsReport ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <MetricCard
-                        label="Tracked pages"
-                        value={String(insightsReport.summary.pagesTracked)}
-                        detail="Current crawl set"
-                      />
-                      <MetricCard
-                        label="New pages"
-                        value={String(insightsReport.summary.newPages)}
-                        detail="Detected since last snapshot"
-                      />
-                      <MetricCard
-                        label="Changed pages"
-                        value={String(insightsReport.summary.changedPages)}
-                        detail="Metadata or content shifts"
-                      />
-                      <MetricCard
-                        label="Warning signals"
-                        value={String(insightsReport.summary.warningSignals)}
-                        detail="Status, noindex, thin pages, or infra signals"
-                      />
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <SimpleListCard
-                        title="Warnings"
-                        badge={`${insightsReport.warnings.length}`}
-                        items={
-                          insightsReport.warnings.length
-                            ? insightsReport.warnings
-                            : ["No sitewide warning signals were flagged in the latest snapshot."]
-                        }
-                      />
-                      <SimpleListCard
-                        title="Tracked page sample"
-                        badge={`${latestTrackedPages.length}`}
-                        items={latestTrackedPages.slice(0, 6).map((page) => `${page.path} · ${page.wordCount} words`)}
-                      />
-                    </div>
-
-                    {insightChanges.length ? (
-                      <div>
-                        <div className="mb-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                            Change log
-                          </p>
-                          <p className="mt-1 text-sm text-[#7f8ea8]">
-                            Action-oriented deltas pulled from the latest Neo4j snapshots.
-                          </p>
-                        </div>
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          {insightChanges.map((change) => (
-                            <InsightChangeCard key={`${change.type}-${change.url}-${change.summary}`} change={change} />
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <EmptyState
-                        title="Baseline captured"
-                        description="No historical diff is available yet. After the next daily refresh, this panel will highlight what changed."
-                      />
-                    )}
-                  </div>
-                ) : insightsLoading ? (
-                  <div className="flex min-h-[320px] flex-col items-center justify-center rounded-[1.2rem] border border-[#1f2d4b] bg-[#0b1426] text-center">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#2a467d]">
-                      <RefreshCcw className="size-7 animate-spin text-[#5f93ff]" />
-                    </div>
-                    <p className="mt-5 text-[15px] font-medium text-[#dbe8ff]">Building the site snapshot...</p>
-                    <p className="mt-2 max-w-md text-[13px] leading-6 text-[#7f8ea8]">
-                      Saving the current crawl into Neo4j so future refreshes can answer the question: what changed?
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <HintCard
-                      icon={<History className="size-5" />}
-                      title="Create the baseline"
-                      description="The first snapshot stores your main site state so future refreshes can compare against it."
-                    />
-                    <HintCard
-                      icon={<TriangleAlert className="size-5" />}
-                      title="Spot risky changes"
-                      description="When templates, metadata, or indexability drift, the diff highlights the pages that need review."
-                    />
-                    <HintCard
-                      icon={<ArrowRight className="size-5" />}
-                      title="Keep the team aligned"
-                      description="Insights turn daily crawl deltas into a shared record of what changed on the site."
-                    />
-                  </div>
-                )}
-              </PanelCard>
-            </motion.section>
-          ) : null}
-
-          {activeTab === "keywords" ? (
-            <motion.section
-              key="keywords"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.28 }}
-              className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
-            >
-              <PanelCard
-                eyebrow="Basic SEO"
-                title="Blend Ahrefs live intel with local fallback"
-                description="The keyword engine tries Ahrefs first when the key and website URL are available, then falls back to the local model so the workflow never blocks."
-              >
-                <Field
-                  label="Optional seed topic"
-                  icon={<Target className="size-4" />}
-                  value={keywordSeed}
-                  onChange={setKeywordSeed}
-                  placeholder="seo audit for saas, beginner marathon plan, ai photo restoration..."
-                />
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <PrimaryButton onClick={handleGenerateKeywords} disabled={keywordLoading}>
-                    {keywordLoading ? <WandSparkles className="size-4 animate-pulse" /> : <Target className="size-4" />}
-                    {keywordLoading ? "Building keyword map..." : "Generate keyword map"}
-                  </PrimaryButton>
-                </div>
-
-                <div className="mt-6 grid gap-3">
-                  <MiniInfoCard
-                    label="Source stack"
-                    value="Profile fields, audit snapshot, action plan, page draft context, plus Ahrefs organic keywords when the API is available."
-                  />
-                  <MiniInfoCard
-                    label="Intent buckets"
-                    value="Money keywords, comparisons, supporting content, and FAQ-style questions."
-                  />
-                  <MiniInfoCard
-                    label="Failure mode"
-                    value="If Ahrefs is missing or errors, the tab stays usable with the local keyword model."
-                  />
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                eyebrow="Basic SEO Results"
-                title={keywordReport ? keywordProviderLabel : "Generate the keyword map"}
-                description={
-                  keywordReport
-                    ? keywordReport.headline
-                    : "Use this after the audit if you want a sharper bridge from page diagnosis into content expansion."
-                }
-              >
-                {keywordReport ? (
-                  <div className="space-y-6">
-                    <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                            Intelligence mode
-                          </p>
-                          <p className="mt-2 text-sm font-semibold text-[#f8fbff]">
-                            {keywordProviderLabel}
-                          </p>
-                          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#c0d0e7]">
-                            {keywordProviderNote}
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-[#315aa4] bg-[#13213c] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9ec1ff]">
-                          {keywordProvider === "ahrefs" ? "Live provider" : "Fallback provider"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {keywordSiteMetrics.length ? (
-                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        {keywordSiteMetrics.map((item) => (
-                          <MetricCard
-                            key={`${item.label}-${item.value}`}
-                            label={item.label}
-                            value={item.value}
-                            detail={item.detail}
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <SimpleListCard
-                        title="Seed terms"
-                        badge={`${keywordReport.seedTerms.length}`}
-                        items={keywordReport.seedTerms}
-                      />
-                      <SimpleListCard
-                        title="Quick wins"
-                        badge={`${keywordReport.quickWins.length}`}
-                        items={keywordReport.quickWins}
-                      />
-                    </div>
-
-                    {keywordCompetitors.length ? (
-                      <div>
-                        <div className="mb-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                            Organic competitors
-                          </p>
-                          <p className="mt-1 text-sm text-[#7f8ea8]">
-                            Live overlap domains from Ahrefs that your team can inspect during content and internal-link reviews.
-                          </p>
-                        </div>
-                        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-                          {keywordCompetitors.map((item) => (
-                            <CompetitorCard key={item.domain} competitor={item} />
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      {keywordReport.clusters.map((cluster) => (
-                        <KeywordClusterCard
-                          key={cluster.label}
-                          cluster={cluster}
-                          onUseKeyword={applyKeyword}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <HintCard
-                      icon={<Target className="size-5" />}
-                      title="Use it after the audit"
-                      description="The richer the audit context, the more useful the local keyword ideas become."
-                    />
-                    <HintCard
-                      icon={<BookText className="size-5" />}
-                      title="Multiple intent buckets"
-                      description="You get commercial, comparison, educational, and question-based opportunities in one pass."
-                    />
-                    <HintCard
-                      icon={<ArrowRight className="size-5" />}
-                      title="Bridge straight to content"
-                      description="Any promising keyword can be pushed into the page generator without retyping it."
-                    />
-                  </div>
-                )}
-              </PanelCard>
-            </motion.section>
-          ) : null}
-
-          {activeTab === "actions" ? (
-            <motion.section
-              key="actions"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.28 }}
-              className="mt-6 grid gap-6 xl:grid-cols-[0.34fr_0.66fr]"
-            >
-              <PanelCard
-                eyebrow="Advanced"
-                title="Turn findings into a ship list"
-                description="This workflow converts the most recent audit into quick wins, strategic fixes, and expansion ideas."
-              >
-                {auditResult ? (
-                  <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
-                    <p className="text-sm font-semibold text-[#f8fbff]">Using latest audit context</p>
-                    <p className="mt-2 text-sm leading-6 text-[#c0d0e7]">
-                      {auditResult.title} on {auditResult.finalUrl}
-                    </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <MiniInfoCard label="Score" value={`${auditResult.score}/100`} />
-                      <MiniInfoCard
-                        label="Priority fixes"
-                        value={`${auditResult.majorFixes.length} major, ${auditResult.quickWins.length} quick`}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="Run a technical audit first"
-                    description="The action planner needs a live audit so the recommendations stay anchored in actual page evidence."
-                  />
-                )}
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <PrimaryButton
-                    onClick={handleGenerateActions}
-                    disabled={!auditResult || actionLoading}
-                  >
-                    {actionLoading ? <WandSparkles className="size-4 animate-pulse" /> : <Hammer className="size-4" />}
-                    {actionLoading ? "Building action plan..." : "Generate fix actions"}
-                  </PrimaryButton>
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                eyebrow="Advanced Results"
-                title={actionPlan ? "Prioritized fixes and follow-up content" : "Generate an action plan"}
-                description={
-                  actionPlan
-                    ? actionPlan.headline
-                    : "This becomes your operator checklist once the planner has audit context."
-                }
-              >
-                {actionPlan ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <PlanListCard title="Quick wins" items={actionPlan.quickWins} />
-                      <PlanListCard title="Strategic fixes" items={actionPlan.strategicFixes} />
-                    </div>
-
-                    <div>
-                      <div className="mb-3">
-                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                            New page opportunities
-                          </p>
-                          <p className="mt-1 text-sm text-[#7f8ea8]">
-                            Content expansions suggested from the latest audit and fix plan.
-                          </p>
-                      </div>
+                  {/* Action plan */}
+                  {actionPlan ? (
+                    <PanelCard title="Fix Action Plan" description={actionPlan.headline}>
                       <div className="grid gap-4 lg:grid-cols-2">
-                        {actionPlan.newPages.map((item) => (
-                          <OpportunityCard
-                            key={`${item.slug}-${item.targetKeyword}`}
-                            opportunity={item}
-                            onUse={() => applyOpportunity(item)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <SimpleListCard
-                      title="Content motions"
-                      badge={`${actionPlan.contentMotions.length}`}
-                      items={actionPlan.contentMotions}
-                    />
-                  </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <HintCard
-                      icon={<Hammer className="size-5" />}
-                      title="Small fixes first"
-                      description="Quick wins keep momentum up while bigger structural work gets scheduled properly."
-                    />
-                    <HintCard
-                      icon={<BookText className="size-5" />}
-                      title="Content ideas stay grounded"
-                      description="Suggested new pages are generated from the audit instead of generic keyword stuffing."
-                    />
-                    <HintCard
-                      icon={<ArrowRight className="size-5" />}
-                      title="Flow into page creation"
-                      description="Move any suggested page directly into the page generator with one click."
-                    />
-                  </div>
-                )}
-              </PanelCard>
-            </motion.section>
-          ) : null}
-
-          {activeTab === "pages" ? (
-            <motion.section
-              key="pages"
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.28 }}
-              className="mt-6 grid gap-6 xl:grid-cols-[0.38fr_0.62fr]"
-            >
-              <PanelCard
-                eyebrow="Pages"
-                title="Draft the next page you should publish"
-                description="Use the report-style page pattern to generate a page with metadata, structure, CTA, and publishable copy."
-              >
-                {keywordReport?.quickWins?.length ? (
-                  <div className="mb-5 rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
-                    <p className="text-sm font-semibold text-[#f8fbff]">Keyword quick wins</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {keywordReport.quickWins.map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => applyKeyword(item)}
-                          className="rounded-lg border border-[#315aa4] bg-[#13213c] px-3 py-1.5 text-xs font-medium text-[#9ec1ff] transition hover:border-[#4b78ca]"
-                        >
-                          {item}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {actionPlan?.newPages?.length ? (
-                  <div className="mb-5 rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
-                    <p className="text-sm font-semibold text-[#f8fbff]">Suggested from the latest action plan</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {actionPlan.newPages.map((item) => (
-                        <button
-                          key={item.slug}
-                          type="button"
-                          onClick={() => applyOpportunity(item)}
-                          className="rounded-lg border border-[#315aa4] bg-[#13213c] px-3 py-1.5 text-xs font-medium text-[#9ec1ff] transition hover:border-[#4b78ca]"
-                        >
-                          {item.title}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="grid gap-4">
-                  <Field
-                    label="Page title"
-                    icon={<NotebookPen className="size-4" />}
-                    value={pageForm.pageTitle}
-                    onChange={(value) => setPageForm((current) => ({ ...current, pageTitle: value }))}
-                    placeholder="Beginner trail running shoes guide"
-                  />
-                  <Field
-                    label="Target keyword"
-                    icon={<Target className="size-4" />}
-                    value={pageForm.targetKeyword}
-                    onChange={(value) =>
-                      setPageForm((current) => ({ ...current, targetKeyword: value }))
-                    }
-                    placeholder="best beginner trail running shoes"
-                  />
-                  <Field
-                    label="Page type"
-                    icon={<BookText className="size-4" />}
-                    value={pageForm.pageType}
-                    onChange={(value) => setPageForm((current) => ({ ...current, pageType: value }))}
-                    placeholder="landing page, category page, comparison page..."
-                  />
-                  <LongField
-                    label="Page goal"
-                    value={pageForm.pageGoal}
-                    onChange={(value) => setPageForm((current) => ({ ...current, pageGoal: value }))}
-                    placeholder="What should this page accomplish for the business and the reader?"
-                  />
-                  <LongField
-                    label="Notes"
-                    value={pageForm.notes}
-                    onChange={(value) => setPageForm((current) => ({ ...current, notes: value }))}
-                    placeholder="Proof points, internal link targets, CTA constraints, tone notes, objections to address."
-                  />
-                </div>
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <PrimaryButton onClick={handleGeneratePageDraft} disabled={pageLoading}>
-                    {pageLoading ? <WandSparkles className="size-4 animate-pulse" /> : <FilePlus2 className="size-4" />}
-                    {pageLoading ? "Generating page..." : "Generate new page"}
-                  </PrimaryButton>
-                </div>
-              </PanelCard>
-
-              <PanelCard
-                eyebrow="Pages Result"
-                title={pageDraft ? pageDraft.title : "Generate a page to preview it here"}
-                description={
-                  pageDraft
-                    ? `${pageDraft.pageType} for ${pageDraft.targetKeyword}`
-                    : "The generator returns metadata, CTA guidance, schema opportunities, and publishable markdown."
-                }
-                actions={
-                  pageDraft ? (
-                    <>
-                      <GhostButton
-                        onClick={() => copyText(pageDraft.markdown, "Page draft copied to clipboard")}
-                      >
-                        <Copy className="size-4" />
-                        Copy markdown
-                      </GhostButton>
-                      <GhostButton
-                        onClick={() =>
-                          downloadText(pageDraft.markdown, `${pageDraft.slug || "new-page"}.md`)
-                        }
-                      >
-                        <Download className="size-4" />
-                        Download .md
-                      </GhostButton>
-                    </>
-                  ) : null
-                }
-              >
-                {pageDraft ? (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <MetricCard label="Slug" value={pageDraft.slug} detail="SEO-safe URL" />
-                      <MetricCard label="Intent" value={pageDraft.intent} detail="Primary search intent" />
-                      <MetricCard label="CTA" value={pageDraft.cta} detail="Primary conversion move" />
-                      <MetricCard label="Keyword" value={pageDraft.targetKeyword} detail="Main phrase" />
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <SimpleListCard title="Internal links" badge={`${pageDraft.internalLinks.length}`} items={pageDraft.internalLinks} />
-                      <SimpleListCard
-                        title="Schema opportunities"
-                        badge={`${pageDraft.schemaOpportunities.length}`}
-                        items={pageDraft.schemaOpportunities}
-                      />
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <SimpleListCard
-                        title="Conversion notes"
-                        badge={`${pageDraft.conversionNotes.length}`}
-                        items={pageDraft.conversionNotes}
-                      />
-                      <div className="rounded-[1.4rem] border border-[#1f2d4b] bg-[#0b1426] p-4">
-                        <p className="text-sm font-semibold text-[#f8fbff]">Metadata QA</p>
-                        <div className="mt-3 space-y-3 text-sm leading-6 text-[#c0d0e7]">
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                              Meta title
-                            </p>
-                            <p className="mt-1">{pageDraft.metaTitle}</p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                              Meta description
-                            </p>
-                            <p className="mt-1">{pageDraft.metaDescription}</p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7db0ff]">
-                              QA summary
-                            </p>
-                            <p className="mt-1">{pageDraft.qaSummary}</p>
-                          </div>
+                        <div>
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#27AE60]">Quick Wins</p>
+                          {actionPlan.quickWins.map((item) => (
+                            <ActionItem key={item.title} item={item} />
+                          ))}
+                        </div>
+                        <div>
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#F39C12]">Strategic Fixes</p>
+                          {actionPlan.strategicFixes.map((item) => (
+                            <ActionItem key={item.title} item={item} />
+                          ))}
                         </div>
                       </div>
-                    </div>
+                    </PanelCard>
+                  ) : null}
 
-                    <div className="rounded-[1.6rem] border border-[#1f2d4b] bg-[#0b1426] p-5 sm:p-6">
-                      <div
-                        className="article-content font-sans"
-                        dangerouslySetInnerHTML={{ __html: pageDraftHtml }}
-                      />
+                  {/* Loading state */}
+                  {assessmentLoading ? (
+                    <div className="flex min-h-[200px] flex-col items-center justify-center">
+                      <RefreshCcw className="size-8 animate-spin text-[#6933fa]" />
+                      <p className="mt-4 text-sm text-[#6e6d74]">Running assessment on {assessmentUrls.filter(Boolean).length} URL{assessmentUrls.filter(Boolean).length === 1 ? "" : "s"}...</p>
                     </div>
+                  ) : null}
+
+                  {!assessmentResults.length && !assessmentLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <InfoCard icon={<Shield className="size-5" />} title="Technical assessment" description="Check titles, meta, canonical, schema, robots, sitemap, viewport, and more." />
+                      <InfoCard icon={<FileSearch className="size-5" />} title="Content assessment" description="Evaluate word count, headings, internal links, images, and content depth." />
+                      <InfoCard icon={<CheckCircle2 className="size-5" />} title="Actionable fixes" description="Each issue shows current state and recommended fix with HTML evidence." />
+                    </div>
+                  ) : null}
+                </motion.div>
+              ) : null}
+
+              {/* ═══════════════════════════════════════════════ */}
+              {/*                 CONTENT TAB                     */}
+              {/* ═══════════════════════════════════════════════ */}
+              {activeTab === "content" ? (
+                <motion.div
+                  key="content"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  <div className="grid gap-6 xl:grid-cols-[0.4fr_0.6fr]">
+                    {/* Input panel */}
+                    <PanelCard title="Content Generator" description="Multi-agent system: one agent writes, another humanizes for natural tone.">
+                      <Field
+                        label="Target keyword"
+                        icon={<Target className="size-4" />}
+                        value={contentForm.keyword}
+                        onChange={(v) => setContentForm((c) => ({ ...c, keyword: v }))}
+                        placeholder="e.g. ai watermark remover, image upscaler"
+                      />
+                      <div className="mt-4">
+                        <Field
+                          label="Existing page URL (optional)"
+                          icon={<Link2 className="size-4" />}
+                          value={contentForm.pageUrl}
+                          onChange={(v) => setContentForm((c) => ({ ...c, pageUrl: v }))}
+                          placeholder="https://example.com/tools/watermark-remover"
+                        />
+                      </div>
+
+                      <div className="mt-4">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6d74]">Page type</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([
+                            { id: "ai-tool" as ContentPageType, label: "AI Tool Page", icon: <Zap className="size-4" /> },
+                            { id: "blog" as ContentPageType, label: "Blog Post", icon: <BookText className="size-4" /> },
+                            { id: "new-page" as ContentPageType, label: "New Page", icon: <FilePlus2 className="size-4" /> },
+                          ]).map((pt) => (
+                            <button
+                              key={pt.id}
+                              type="button"
+                              onClick={() => setContentForm((c) => ({ ...c, pageType: pt.id }))}
+                              className={cn(
+                                "flex flex-col items-center gap-2 rounded-xl border px-3 py-3 text-center text-xs font-medium transition-all",
+                                contentForm.pageType === pt.id
+                                  ? "border-[#6933fa] bg-[#f7f5fc] text-[#6933fa]"
+                                  : "border-[#f0f0f0] bg-white text-[#6e6d74] hover:border-[#e8e8fc]"
+                              )}
+                            >
+                              {pt.icon}
+                              {pt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex gap-3">
+                        <PrimaryButton onClick={handleGenerateContent} disabled={contentLoading}>
+                          {contentLoading ? <RefreshCcw className="size-4 animate-spin" /> : <WandSparkles className="size-4" />}
+                          {contentLoading ? "Generating..." : "Generate Content"}
+                        </PrimaryButton>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-[#e8e8fc] bg-[#f7f5fc] p-3">
+                        <p className="text-xs font-medium text-[#6933fa]">Multi-agent pipeline</p>
+                        <p className="mt-1 text-[11px] text-[#6e6d74]">
+                          Agent 1 (Writer) creates structured SEO content. Agent 2 (Humanizer) rewrites prose to avoid AI detection patterns with varied sentence structure and natural tone.
+                        </p>
+                      </div>
+                    </PanelCard>
+
+                    {/* Content result */}
+                    <PanelCard
+                      title={contentResult ? "Generated Content" : "Content Preview"}
+                      description={contentResult ? `${(contentResult as Record<string, string>).pageType || contentForm.pageType} for "${(contentResult as Record<string, string>).keyword || contentForm.keyword}"` : "Generate content to see the output here."}
+                    >
+                      {contentResult ? (
+                        <ContentResultView
+                          result={contentResult}
+                          pageType={contentForm.pageType}
+                          onCopy={(text) => copyText(text, "Copied to clipboard")}
+                        />
+                      ) : contentLoading ? (
+                        <div className="flex min-h-[300px] flex-col items-center justify-center">
+                          <RefreshCcw className="size-8 animate-spin text-[#6933fa]" />
+                          <p className="mt-4 text-sm text-[#6e6d74]">Writer agent creating content...</p>
+                          <p className="mt-1 text-xs text-[#b5b5b5]">Humanizer agent will refine the output next</p>
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <InfoCard icon={<Zap className="size-5" />} title="AI Tool Page" description="Hero, how-it-works, features, use cases, tips, FAQ, related tools, and schema markup." />
+                          <InfoCard icon={<BookText className="size-5" />} title="Blog Post" description="Introduction, structured sections with H2/H3, conclusion, FAQ, and internal links." />
+                        </div>
+                      )}
+                    </PanelCard>
                   </div>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <HintCard
-                      icon={<FilePlus2 className="size-5" />}
-                      title="Use the latest audit"
-                      description="If you have one, the generator will pull in audit and action-plan context automatically."
-                    />
-                    <HintCard
-                      icon={<BookText className="size-5" />}
-                      title="Pattern-driven copy"
-                      description="The page structure follows the richer report-studio landing page pattern instead of a generic blog draft."
-                    />
-                    <HintCard
-                      icon={<Target className="size-5" />}
-                      title="Built to publish"
-                      description="You get a slug, metadata, CTA logic, internal links, schema ideas, and ready-to-edit markdown."
-                    />
-                  </div>
-                )}
-              </PanelCard>
-            </motion.section>
-          ) : null}
-        </AnimatePresence>
+                </motion.div>
+              ) : null}
+
+              {/* ═══════════════════════════════════════════════ */}
+              {/*                 SETTINGS TAB                    */}
+              {/* ═══════════════════════════════════════════════ */}
+              {activeTab === "settings" ? (
+                <motion.div
+                  key="settings"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  <PanelCard title="Project Profile" description="Shared context used across all tabs.">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Project name" icon={<NotebookPen className="size-4" />} value={profile.projectName} onChange={(v) => setProfile((c) => ({ ...c, projectName: v }))} placeholder="Your project or site name" />
+                      <Field label="Website URL" icon={<Globe2 className="size-4" />} value={profile.websiteUrl} onChange={(v) => setProfile((c) => ({ ...c, websiteUrl: v }))} placeholder="https://example.com" />
+                      <LongField label="Audience" value={profile.audience} onChange={(v) => setProfile((c) => ({ ...c, audience: v }))} placeholder="Who the site serves" />
+                      <LongField label="Offer" value={profile.offer} onChange={(v) => setProfile((c) => ({ ...c, offer: v }))} placeholder="What the site sells or helps users accomplish" />
+                      <LongField label="Differentiators" value={profile.differentiators} onChange={(v) => setProfile((c) => ({ ...c, differentiators: v }))} placeholder="Why this project deserves attention" />
+                      <LongField label="Goals" value={profile.goals} onChange={(v) => setProfile((c) => ({ ...c, goals: v }))} placeholder="Traffic, conversion, authority targets" />
+                      <LongField label="Voice" value={profile.voice} onChange={(v) => setProfile((c) => ({ ...c, voice: v }))} placeholder="Direct, warm, analytical..." />
+                      <LongField label="Notes" value={profile.notes} onChange={(v) => setProfile((c) => ({ ...c, notes: v }))} placeholder="Any constraints or business context" />
+                    </div>
+                    <div className="mt-4">
+                      <GhostButton onClick={resetWorkspace}>
+                        <RefreshCcw className="size-4" />
+                        Clear all data
+                      </GhostButton>
+                    </div>
+                  </PanelCard>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
         </div>
       </div>
+
+      {/* ─── Fix Modal ─── */}
+      {selectedIssue ? (
+        <FixModal
+          issue={selectedIssue.issue}
+          evidence={selectedIssue.evidence}
+          url={selectedIssue.url}
+          onClose={() => setSelectedIssue(null)}
+        />
+      ) : null}
     </main>
   );
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/*                       SUB-COMPONENTS                               */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+function createWorkspaceKey(profile: WorkspaceProfile) {
+  const raw = `${profile.projectName}-${profile.websiteUrl}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return raw || "";
 }
 
 function renderMarkdown(markdown: string) {
@@ -2363,547 +886,625 @@ function renderMarkdown(markdown: string) {
   return typeof rendered === "string" ? rendered : "";
 }
 
-function toneClasses(severity: Severity) {
-  switch (severity) {
-    case "high":
-      return "border-[#7f1d1d]/70 bg-[#2a1118] text-[#fda4af]";
-    case "medium":
-      return "border-[#5b4a1d]/70 bg-[#251f12] text-[#facc15]";
-    case "low":
-      return "border-[#1f4b3d]/70 bg-[#0f231d] text-[#86efac]";
+function toTitleCase(text: string) {
+  return text.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function severityColor(s: Severity) {
+  switch (s) {
+    case "high": return { bg: "bg-[#fde8e8]", text: "text-[#E74C3C]", border: "border-[#E74C3C]/20" };
+    case "medium": return { bg: "bg-[#fef3e2]", text: "text-[#F39C12]", border: "border-[#F39C12]/20" };
+    case "low": return { bg: "bg-[#e6f7ee]", text: "text-[#27AE60]", border: "border-[#27AE60]/20" };
   }
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+/* ─── KPI Card ─── */
+function KpiCard({ label, value, change, positive }: { label: string; value: string; change: string; positive: boolean | null }) {
   return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#0d1528] px-4 py-3">
-      <p className="text-[10px] uppercase tracking-[0.22em] text-[#6e83a7]">{label}</p>
-      <p className="mt-2 text-[1.15rem] font-semibold text-[#f8fbff]">{value}</p>
+    <div className="card-shadow rounded-2xl border border-[#f0f0f0] bg-white p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#b5b5b5]">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-[#34324a]">{value}</p>
+      <p className={cn("mt-1 text-xs font-medium", positive === true ? "text-[#27AE60]" : positive === false ? "text-[#E74C3C]" : "text-[#6e6d74]")}>
+        {change}
+      </p>
     </div>
   );
 }
 
-function PanelCard({
-  eyebrow,
-  title,
-  description,
-  children,
-  actions,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  children: ReactNode;
-  actions?: ReactNode;
-}) {
+/* ─── Panel Card ─── */
+function PanelCard({ title, description, children, actions }: { title: string; description: string; children: ReactNode; actions?: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-[#1c2a45] bg-[#0d1528] p-5 shadow-[0_18px_50px_rgba(2,8,23,0.28)] sm:p-6">
-      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <section className="card-shadow rounded-2xl border border-[#f0f0f0] bg-white p-5 sm:p-6">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6e83a7]">{eyebrow}</p>
-          <h2 className="font-display mt-2 text-[1.35rem] leading-tight text-[#f8fbff]">{title}</h2>
-          <p className="mt-3 max-w-2xl text-[13px] leading-6 text-[#7f8ea8]">{description}</p>
+          <h2 className="font-display text-lg font-semibold text-[#34324a]">{title}</h2>
+          <p className="mt-1 text-[13px] text-[#6e6d74]">{description}</p>
         </div>
-
-        {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
-
       {children}
     </section>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  icon,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  icon: ReactNode;
-}) {
+/* ─── Field ─── */
+function Field({ label, value, onChange, placeholder, icon }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; icon: ReactNode }) {
   return (
-    <label className="space-y-2">
-      <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f8ea8]">
-        {icon}
-        {label}
-      </span>
+    <label className="space-y-1.5">
+      <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6d74]">{icon}{label}</span>
       <input
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-12 w-full rounded-xl border border-[#1f2d4b] bg-[#182235] px-4 text-sm text-[#e6eefc] outline-none transition placeholder:text-[#637795] focus:border-[#3b82f6] focus:ring-4 focus:ring-[#1d4ed8]/20"
+        className="h-11 w-full rounded-xl border border-[#f0f0f0] bg-white px-4 text-sm text-[#34324a] outline-none transition placeholder:text-[#b5b5b5] focus:border-[#6933fa] focus:ring-2 focus:ring-[#6933fa]/10"
       />
     </label>
   );
 }
 
-function LongField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
+/* ─── LongField ─── */
+function LongField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
-    <label className="space-y-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7f8ea8]">
-        {label}
-      </span>
+    <label className="space-y-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6e6d74]">{label}</span>
       <textarea
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        rows={4}
-        className="w-full rounded-xl border border-[#1f2d4b] bg-[#182235] px-4 py-3 text-sm leading-6 text-[#e6eefc] outline-none transition placeholder:text-[#637795] focus:border-[#3b82f6] focus:ring-4 focus:ring-[#1d4ed8]/20"
+        rows={3}
+        className="w-full rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 text-sm leading-6 text-[#34324a] outline-none transition placeholder:text-[#b5b5b5] focus:border-[#6933fa] focus:ring-2 focus:ring-[#6933fa]/10"
       />
     </label>
   );
 }
 
-function PrimaryButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+/* ─── Buttons ─── */
+function PrimaryButton({ children, onClick, disabled }: { children: ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-xl bg-[#2d5ca8] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(29,78,216,0.24)] transition hover:bg-[#3567b9] disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-full bg-[#6933fa] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#3535f3] disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
   );
 }
 
-function GhostButton({
-  children,
-  onClick,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-}) {
+function GhostButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-xl border border-[#1f2d4b] bg-[#111a2d] px-4 py-2.5 text-[13px] font-medium text-[#c3d1e7] transition hover:border-[#315aa4] hover:text-[#ffffff]"
+      className="inline-flex items-center gap-2 rounded-full border border-[#f0f0f0] bg-white px-4 py-2 text-[13px] font-medium text-[#6e6d74] transition hover:border-[#6933fa] hover:text-[#6933fa]"
     >
       {children}
     </button>
   );
 }
 
-function HintCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
+/* ─── Info Card ─── */
+function InfoCard({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-5">
-      <div className="inline-flex rounded-xl bg-[#152340] p-3 text-[#6ca4ff]">{icon}</div>
-      <h3 className="font-display mt-4 text-[1.05rem] leading-tight text-[#f8fbff]">{title}</h3>
-      <p className="mt-3 text-[13px] leading-6 text-[#7f8ea8]">{description}</p>
+    <div className="card-shadow rounded-2xl border border-[#f0f0f0] bg-white p-5">
+      <div className="inline-flex rounded-xl bg-[#f7f5fc] p-3 text-[#6933fa]">{icon}</div>
+      <h3 className="font-display mt-3 text-sm font-semibold text-[#34324a]">{title}</h3>
+      <p className="mt-2 text-[13px] leading-6 text-[#6e6d74]">{description}</p>
     </div>
   );
 }
 
-function EmptyState({
-  title,
-  description,
+/* ─── Assessment Result Card ─── */
+function AssessmentResultCard({
+  result,
+  onClickIssue,
 }: {
-  title: string;
-  description: string;
+  result: TechnicalAuditResult;
+  onClickIssue: (issue: TechnicalAuditResult["insights"]["technicalSeo"][0], evidence?: HtmlEvidence) => void;
 }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-[#24314e] bg-[#0b1426] px-4 py-5 text-sm leading-6 text-[#7f8ea8]">
-      <p className="font-semibold text-[#f8fbff]">{title}</p>
-      <p className="mt-2">{description}</p>
-    </div>
-  );
-}
+  const [expanded, setExpanded] = useState(false);
+  const allIssues = [...result.insights.technicalSeo, ...result.insights.pagePerformance, ...result.insights.contentQuality];
+  const scoreColor = result.score >= 85 ? "text-[#27AE60]" : result.score >= 70 ? "text-[#F39C12]" : "text-[#E74C3C]";
 
-function MetricCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
   return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6e83a7]">{label}</p>
-      <p className="mt-2 text-base font-semibold text-[#f8fbff]">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-[#7f8ea8]">{detail}</p>
-    </div>
-  );
-}
-
-function MiniInfoCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#6e83a7]">{label}</p>
-      <p className="mt-2 text-sm leading-6 text-[#c0d0e7]">{value}</p>
-    </div>
-  );
-}
-
-function SimpleListCard({
-  title,
-  badge,
-  items,
-}: {
-  title: string;
-  badge: string;
-  items: string[];
-}) {
-  return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[#f8fbff]">{title}</p>
-        <span className="rounded-full bg-[#152340] px-3 py-1 text-xs font-semibold text-[#7db0ff]">
-          {badge}
-        </span>
-      </div>
-      <div className="mt-4 space-y-3">
-        {items.length ? (
-          items.map((item) => (
-            <div
-              key={`${title}-${item}`}
-              className="rounded-xl border border-[#1b2945] bg-[#0b1426] px-4 py-3 text-sm leading-6 text-[#c0d0e7]"
-            >
-              {item}
-            </div>
-          ))
-        ) : (
-          <p className="text-sm leading-6 text-[#7f8ea8]">No items yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function InsightChangeCard({
-  change,
-}: {
-  change: SiteChange;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-[#f8fbff]">{change.title}</p>
-        <span
-          className={cn(
-            "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]",
-            toneClasses(change.severity)
-          )}
-        >
-          {change.severity}
-        </span>
-      </div>
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">
-        {change.type.replace(/-/g, " ")}
-      </p>
-      <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{change.summary}</p>
-      {(change.before || change.after) ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl bg-[#0b1426] px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">
-              Before
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#d6e4ff]">{change.before || "n/a"}</p>
+    <div className="card-shadow rounded-2xl border border-[#f0f0f0] bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between p-5">
+        <div className="flex items-center gap-4">
+          <div className={cn("flex h-14 w-14 items-center justify-center rounded-xl text-2xl font-bold", scoreColor,
+            result.score >= 85 ? "bg-[#e6f7ee]" : result.score >= 70 ? "bg-[#fef3e2]" : "bg-[#fde8e8]"
+          )}>
+            {result.score}
           </div>
-          <div className="rounded-xl bg-[#0b1426] px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">
-              After
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#d6e4ff]">{change.after || "n/a"}</p>
+          <div>
+            <p className="text-sm font-semibold text-[#34324a]">{result.title}</p>
+            <p className="mt-0.5 text-xs text-[#6e6d74]">{result.finalUrl}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={cn("rounded-full px-3 py-1 text-xs font-semibold",
+            result.score >= 85 ? "bg-[#e6f7ee] text-[#27AE60]" : result.score >= 70 ? "bg-[#fef3e2] text-[#F39C12]" : "bg-[#fde8e8] text-[#E74C3C]"
+          )}>
+            {result.status}
+          </span>
+          <button type="button" onClick={() => setExpanded(!expanded)} className="rounded-lg p-2 text-[#6e6d74] transition hover:bg-[#f7f5fc]">
+            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Metrics row */}
+      <div className="grid grid-cols-4 gap-px border-t border-[#f0f0f0] bg-[#f0f0f0]">
+        <MiniMetric label="Words" value={String(result.metrics.wordCount)} />
+        <MiniMetric label="Links" value={String(result.metrics.internalLinks)} />
+        <MiniMetric label="Images" value={String(result.metrics.images)} />
+        <MiniMetric label="Issues" value={String(allIssues.length)} />
+      </div>
+
+      {/* Expanded issues */}
+      {expanded ? (
+        <div className="border-t border-[#f0f0f0] p-5">
+          {/* Snapshot */}
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <SnapshotItem label="Title" value={result.snapshot.titleTag || "Missing"} />
+            <SnapshotItem label="Meta description" value={result.snapshot.metaDescription || "Missing"} />
+            <SnapshotItem label="H1" value={result.snapshot.h1s[0] || "Missing"} />
+            <SnapshotItem label="Canonical" value={result.snapshot.canonical || "Missing"} />
+          </div>
+
+          {/* Issues grouped */}
+          {(["technicalSeo", "pagePerformance", "contentQuality"] as const).map((bucket) => {
+            const issues = result.insights[bucket];
+            if (!issues.length) return null;
+            const bucketLabels = { technicalSeo: "Technical SEO", pagePerformance: "Performance", contentQuality: "Content Quality" };
+            return (
+              <div key={bucket} className="mb-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6933fa]">{bucketLabels[bucket]}</p>
+                <div className="space-y-2">
+                  {issues.map((issue) => {
+                    const colors = severityColor(issue.severity);
+                    const matchingEvidence = result.htmlEvidence.find((e) => e.label.toLowerCase().includes(issue.title.split(" ")[0].toLowerCase()));
+                    return (
+                      <button
+                        key={issue.title}
+                        type="button"
+                        onClick={() => onClickIssue(issue, matchingEvidence)}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-all hover:shadow-sm",
+                          colors.border, "bg-white"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", colors.bg, colors.text)}>
+                            {issue.severity}
+                          </span>
+                          <span className="text-sm text-[#34324a]">{issue.title}</span>
+                        </div>
+                        <span className="text-xs text-[#6933fa]">View fix →</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Quick wins + Major fixes */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#27AE60]">Quick wins</p>
+              {result.quickWins.map((w) => <p key={w} className="mt-1 text-xs text-[#6e6d74]">{w}</p>)}
+            </div>
+            <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#E74C3C]">Major fixes</p>
+              {result.majorFixes.map((f) => <p key={f} className="mt-1 text-xs text-[#6e6d74]">{f}</p>)}
+            </div>
           </div>
         </div>
       ) : null}
-      <div className="mt-4 rounded-xl bg-[#152340] px-3 py-3 text-sm leading-6 text-[#bdd4ff]">
-        <span className="font-semibold text-[#f8fbff]">Recommended action:</span> {change.action}
-      </div>
-      <p className="mt-3 truncate text-[11px] text-[#7f8ea8]">{change.url}</p>
     </div>
   );
 }
 
-function IssueBucketCard({
-  title,
-  issues,
-  emptyMessage,
-}: {
-  title: string;
-  issues: TechnicalAuditResult["insights"][keyof TechnicalAuditResult["insights"]];
-  emptyMessage: string;
-}) {
+function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-[#f8fbff]">{title}</p>
-        <span className="rounded-full bg-[#152340] px-3 py-1 text-xs font-semibold text-[#7db0ff]">
-          {issues.length}
-        </span>
-      </div>
-
-      <div className="mt-4 space-y-4">
-        {issues.length ? (
-          issues.map((issue) => (
-            <div
-              key={`${title}-${issue.title}`}
-              className="rounded-xl border border-[#1b2945] bg-[#0b1426] p-4"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-[#f8fbff]">{issue.title}</p>
-                <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]", toneClasses(issue.severity))}>
-                  {issue.severity}
-                </span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{issue.evidence}</p>
-              <div className="mt-3 rounded-xl bg-[#152340] px-3 py-3 text-sm leading-6 text-[#bdd4ff]">
-                <span className="font-semibold text-[#f8fbff]">Next action:</span> {issue.action}
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm leading-6 text-[#7f8ea8]">{emptyMessage}</p>
-        )}
-      </div>
+    <div className="bg-white px-4 py-3 text-center">
+      <p className="text-xs text-[#b5b5b5]">{label}</p>
+      <p className="text-sm font-semibold text-[#34324a]">{value}</p>
     </div>
   );
 }
 
-function PlanListCard({
-  title,
-  items,
-}: {
-  title: string;
-  items: ActionPlanItem[];
-}) {
+function SnapshotItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <p className="text-sm font-semibold text-[#f8fbff]">{title}</p>
-      <div className="mt-4 space-y-4">
-        {items.length ? (
-          items.map((item) => (
-            <div
-              key={`${title}-${item.title}`}
-              className="rounded-xl border border-[#1b2945] bg-[#0b1426] p-4"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-[#f8fbff]">{item.title}</p>
-                <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]", toneClasses(item.impact))}>
-                  {item.impact} impact
-                </span>
-                <span className="rounded-full border border-[#263757] bg-[#10192d] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8ea0bc]">
-                  {item.effort}
-                </span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{item.why}</p>
-              <div className="mt-3 space-y-2">
-                {item.steps.map((step) => (
-                  <div
-                    key={`${item.title}-${step}`}
-                    className="rounded-xl bg-[#152340] px-3 py-3 text-sm leading-6 text-[#bdd4ff]"
-                  >
-                    {step}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-sm leading-6 text-[#8ea0bc]">
-                <span className="font-semibold text-[#f8fbff]">Done when:</span> {item.doneWhen}
-              </p>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm leading-6 text-[#7f8ea8]">No actions yet.</p>
-        )}
-      </div>
+    <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#b5b5b5]">{label}</p>
+      <p className="mt-1 truncate text-xs text-[#34324a]">{value}</p>
     </div>
   );
 }
 
-function OpportunityCard({
-  opportunity,
-  onUse,
+/* ─── Fix Modal ─── */
+function FixModal({
+  issue,
+  evidence,
+  url,
+  onClose,
 }: {
-  opportunity: NewPageOpportunity;
-  onUse: () => void;
+  issue: { title: string; severity: Severity; evidence: string; action: string };
+  evidence?: HtmlEvidence;
+  url: string;
+  onClose: () => void;
 }) {
+  const colors = severityColor(issue.severity);
   return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm font-semibold text-[#f8fbff]">{opportunity.title}</p>
-        <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]", toneClasses(opportunity.priority))}>
-          {opportunity.priority}
-        </span>
-      </div>
-      <p className="mt-2 text-sm text-[#7db0ff]">{opportunity.targetKeyword}</p>
-      <p className="mt-3 text-sm leading-6 text-[#c0d0e7]">{opportunity.reason}</p>
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <div className="text-xs uppercase tracking-[0.22em] text-[#7f8ea8]">{opportunity.pageType}</div>
-        <button
-          type="button"
-          onClick={onUse}
-          className="rounded-lg border border-[#315aa4] bg-[#13213c] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ec1ff] transition hover:border-[#4b78ca]"
-        >
-          Use this idea
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function CompetitorCard({
-  competitor,
-}: {
-  competitor: KeywordReport["competitors"][number];
-}) {
-  return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <p className="text-sm font-semibold text-[#f8fbff]">{competitor.domain}</p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl bg-[#152340] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">Shared kws</p>
-          <p className="mt-1 text-sm font-semibold text-[#f8fbff]">{competitor.sharedKeywords}</p>
-        </div>
-        <div className="rounded-xl bg-[#152340] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7db0ff]">Domain rating</p>
-          <p className="mt-1 text-sm font-semibold text-[#f8fbff]">{competitor.domainRating ?? "n/a"}</p>
-        </div>
-      </div>
-      <p className="mt-3 text-[12px] leading-6 text-[#c0d0e7]">
-        Traffic {competitor.traffic ?? "n/a"} · Overlap share {competitor.share ?? "n/a"}%
-      </p>
-    </div>
-  );
-}
-
-function KeywordClusterCard({
-  cluster,
-  onUseKeyword,
-}: {
-  cluster: KeywordCluster;
-  onUseKeyword: (keyword: string) => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#1c2a45] bg-[#10192d] p-4">
-      <p className="text-sm font-semibold text-[#f8fbff]">{cluster.label}</p>
-      <p className="mt-2 text-sm leading-6 text-[#7f8ea8]">{cluster.description}</p>
-
-      <div className="mt-4 space-y-3">
-        {cluster.suggestions.map((item) => (
-          <div
-            key={`${cluster.label}-${item.keyword}`}
-            className="rounded-xl border border-[#1b2945] bg-[#0b1426] p-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-[#f8fbff]">{item.keyword}</p>
-              <span className="rounded-full border border-[#263757] bg-[#10192d] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8ea0bc]">
-                {item.intent}
+    <div className="fix-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#f0f0f0] bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold uppercase", colors.bg, colors.text)}>
+                {issue.severity}
               </span>
-              <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
-                score {item.score}
-              </span>
+              <h3 className="text-lg font-semibold text-[#34324a]">{issue.title}</h3>
             </div>
-            <p className="mt-2 text-sm leading-6 text-[#c0d0e7]">{item.why}</p>
-            {item.volume || item.traffic || item.position || item.difficulty ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {typeof item.position === "number" ? (
-                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
-                    Pos #{item.position}
-                  </span>
-                ) : null}
-                {typeof item.volume === "number" ? (
-                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
-                    Vol {item.volume}
-                  </span>
-                ) : null}
-                {typeof item.traffic === "number" ? (
-                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
-                    Traffic {item.traffic}
-                  </span>
-                ) : null}
-                {typeof item.difficulty === "number" ? (
-                  <span className="rounded-full bg-[#152340] px-2.5 py-1 text-[11px] font-semibold text-[#7db0ff]">
-                    KD {item.difficulty}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-[#7db0ff]">{item.source}</p>
-                {item.rankingUrl ? (
-                  <p className="truncate text-[11px] text-[#7f8ea8]">{item.rankingUrl}</p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={() => onUseKeyword(item.keyword)}
-                className="rounded-lg border border-[#315aa4] bg-[#13213c] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#9ec1ff] transition hover:border-[#4b78ca]"
-              >
-                Use keyword
-              </button>
-            </div>
+            <p className="mt-1 text-xs text-[#6e6d74]">{url}</p>
           </div>
-        ))}
-      </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-[#b5b5b5] transition hover:bg-[#f7f5fc] hover:text-[#34324a]">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#6e6d74]">Issue</p>
+            <p className="mt-2 text-sm leading-6 text-[#34324a]">{issue.evidence}</p>
+          </div>
+
+          <div className="rounded-xl border border-[#e8e8fc] bg-[#f7f5fc] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Recommended Action</p>
+            <p className="mt-2 text-sm leading-6 text-[#34324a]">{issue.action}</p>
+          </div>
+
+          {evidence ? (
+            <>
+              <div className="rounded-xl border border-[#E74C3C]/20 bg-[#fde8e8]/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#E74C3C]">Current State</p>
+                <code className="mt-2 block overflow-x-auto rounded-lg bg-white p-3 text-xs text-[#34324a]">
+                  {evidence.current}
+                </code>
+              </div>
+              <div className="rounded-xl border border-[#27AE60]/20 bg-[#e6f7ee]/30 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#27AE60]">Recommended Fix</p>
+                <code className="mt-2 block overflow-x-auto rounded-lg bg-white p-3 text-xs text-[#34324a]">
+                  {evidence.solution}
+                </code>
+              </div>
+              <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#6e6d74]">Why this matters</p>
+                <p className="mt-2 text-sm leading-6 text-[#6e6d74]">{evidence.why}</p>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </motion.div>
     </div>
   );
 }
 
-function toTitleCase(value: string) {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+/* ─── Action Item ─── */
+function ActionItem({ item }: { item: ActionPlanItem }) {
+  const [open, setOpen] = useState(false);
+  const colors = severityColor(item.impact);
+  return (
+    <div className="mb-3 rounded-xl border border-[#f0f0f0] bg-white p-4">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left">
+        <div className="flex items-center gap-2">
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", colors.bg, colors.text)}>{item.impact}</span>
+          <span className="text-sm font-medium text-[#34324a]">{item.title}</span>
+        </div>
+        <ChevronRight className={cn("size-4 text-[#b5b5b5] transition", open && "rotate-90")} />
+      </button>
+      {open ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-sm text-[#6e6d74]">{item.why}</p>
+          {item.steps.map((step) => (
+            <div key={step} className="flex items-start gap-2 rounded-lg bg-[#fafafa] px-3 py-2 text-xs text-[#6e6d74]">
+              <ChevronRight className="mt-0.5 size-3 shrink-0 text-[#6933fa]" />
+              {step}
+            </div>
+          ))}
+          <p className="text-xs text-[#b5b5b5]">Done when: {item.doneWhen}</p>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-function createWorkspaceKey(profile: Partial<WorkspaceProfile>) {
-  const fromUrl = profile.websiteUrl?.trim();
+/* ─── Content Result View ─── */
+function ContentResultView({
+  result,
+  pageType,
+  onCopy,
+}: {
+  result: Record<string, unknown>;
+  pageType: ContentPageType;
+  onCopy: (text: string) => void;
+}) {
+  const content = (result as Record<string, Record<string, unknown>>).content || result;
 
-  if (fromUrl) {
-    try {
-      const normalized = /^https?:\/\//i.test(fromUrl) ? fromUrl : `https://${fromUrl}`;
-      const host = new URL(normalized).hostname.replace(/^www\./, "");
-      return host.replace(/[^\w.-]/g, "-");
-    } catch {
-      // fall through to project name
-    }
+  if (pageType === "ai-tool") {
+    return <AIToolContentView content={content as Record<string, unknown>} onCopy={onCopy} />;
   }
 
-  return (profile.projectName || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
+  if (pageType === "blog") {
+    return <BlogContentView content={content as Record<string, unknown>} onCopy={onCopy} />;
+  }
+
+  return <GenericContentView content={content as Record<string, unknown>} onCopy={onCopy} />;
+}
+
+/* ─── AI Tool Content View ─── */
+function AIToolContentView({ content, onCopy }: { content: Record<string, unknown>; onCopy: (t: string) => void }) {
+  const c = content as Record<string, unknown>;
+  const howItWorks = (c.howItWorks || []) as Array<{ step: number; title: string; description: string }>;
+  const features = (c.features || []) as Array<{ title: string; description: string }>;
+  const useCases = (c.useCases || []) as Array<{ title: string; description: string }>;
+  const tips = (c.tipsForBetterResults || []) as Array<{ title: string; description: string }>;
+  const faq = (c.faq || []) as Array<{ question: string; answer: string }>;
+  const relatedTools = (c.relatedTools || []) as string[];
+
+  return (
+    <div className="space-y-5">
+      {/* Meta */}
+      <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Meta Tags</p>
+          <button type="button" onClick={() => onCopy(`<title>${c.metaTitle}</title>\n<meta name="description" content="${c.metaDescription}">`)} className="text-xs text-[#6933fa] hover:underline">Copy</button>
+        </div>
+        <p className="mt-2 text-sm font-medium text-[#34324a]">{String(c.metaTitle || "")}</p>
+        <p className="mt-1 text-xs text-[#6e6d74]">{String(c.metaDescription || "")}</p>
+      </div>
+
+      {/* Hero */}
+      <div className="rounded-xl border border-[#e8e8fc] bg-[#f7f5fc] p-5">
+        <h2 className="font-display text-xl font-bold text-[#34324a]">{String(c.h1 || "")}</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6e6d74]">{String(c.heroDescription || "")}</p>
+        <div className="mt-3 flex gap-2">
+          <span className="rounded-full bg-[#6933fa] px-4 py-1.5 text-xs font-semibold text-white">{String(c.ctaPrimary || "Get Started")}</span>
+          <span className="rounded-full border border-[#6933fa] px-4 py-1.5 text-xs font-semibold text-[#6933fa]">{String(c.ctaSecondary || "Learn More")}</span>
+        </div>
+      </div>
+
+      {/* How it works */}
+      {howItWorks.length ? (
+        <div>
+          <SectionLabel label="How It Works" />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {howItWorks.map((step) => (
+              <div key={step.step} className="rounded-xl border border-[#f0f0f0] bg-white p-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#6933fa] text-sm font-bold text-white">{step.step}</div>
+                <p className="mt-3 text-sm font-semibold text-[#34324a]">{step.title}</p>
+                <p className="mt-1 text-xs text-[#6e6d74]">{step.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Features */}
+      {features.length ? (
+        <div>
+          <SectionLabel label="Features" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {features.map((f) => (
+              <div key={f.title} className="rounded-xl border border-[#f0f0f0] bg-white p-4">
+                <p className="text-sm font-semibold text-[#34324a]">{f.title}</p>
+                <p className="mt-1 text-xs text-[#6e6d74]">{f.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Use Cases */}
+      {useCases.length ? (
+        <div>
+          <SectionLabel label="Use Cases" />
+          <div className="space-y-2">
+            {useCases.map((u) => (
+              <div key={u.title} className="rounded-xl border border-[#f0f0f0] bg-white p-4">
+                <p className="text-sm font-semibold text-[#34324a]">{u.title}</p>
+                <p className="mt-1 text-xs text-[#6e6d74]">{u.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Tips */}
+      {tips.length ? (
+        <div>
+          <SectionLabel label="Tips for Better Results" />
+          <div className="space-y-2">
+            {tips.map((t) => (
+              <div key={t.title} className="flex gap-3 rounded-xl border border-[#f0f0f0] bg-white p-3">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#27AE60]" />
+                <div>
+                  <p className="text-sm font-medium text-[#34324a]">{t.title}</p>
+                  <p className="text-xs text-[#6e6d74]">{t.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* FAQ */}
+      {faq.length ? (
+        <div>
+          <SectionLabel label="FAQ" />
+          <div className="space-y-2">
+            {faq.map((f) => (
+              <FAQItem key={f.question} question={f.question} answer={f.answer} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Related Tools */}
+      {relatedTools.length ? (
+        <div>
+          <SectionLabel label="Related Tools" />
+          <div className="flex flex-wrap gap-2">
+            {relatedTools.map((t) => (
+              <span key={t} className="rounded-full border border-[#f0f0f0] bg-white px-3 py-1.5 text-xs text-[#6e6d74]">{t}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Schema */}
+      {c.schemaMarkup ? (
+        <div>
+          <div className="flex items-center justify-between">
+            <SectionLabel label="Schema Markup (JSON-LD)" />
+            <button type="button" onClick={() => onCopy(String(c.schemaMarkup))} className="text-xs text-[#6933fa] hover:underline">Copy schema</button>
+          </div>
+          <pre className="mt-2 max-h-48 overflow-auto rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-3 text-[11px] text-[#6e6d74]">
+            {String(c.schemaMarkup)}
+          </pre>
+        </div>
+      ) : null}
+
+      {/* Copy all */}
+      <div className="flex gap-2">
+        <GhostButton onClick={() => onCopy(JSON.stringify(content, null, 2))}>
+          <Copy className="size-3.5" />
+          Copy all as JSON
+        </GhostButton>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Blog Content View ─── */
+function BlogContentView({ content, onCopy }: { content: Record<string, unknown>; onCopy: (t: string) => void }) {
+  const c = content as Record<string, unknown>;
+  const sections = (c.sections || []) as Array<{ h2: string; content: string; h3s?: Array<{ title: string; content: string }> }>;
+  const faq = (c.faq || []) as Array<{ question: string; answer: string }>;
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Meta</p>
+        <p className="mt-2 text-sm font-medium text-[#34324a]">{String(c.metaTitle || "")}</p>
+        <p className="mt-1 text-xs text-[#6e6d74]">{String(c.metaDescription || "")}</p>
+      </div>
+
+      <div className="rounded-xl border border-[#e8e8fc] bg-[#f7f5fc] p-5">
+        <h2 className="font-display text-xl font-bold text-[#34324a]">{String(c.h1 || "")}</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6e6d74]">{String(c.introduction || "")}</p>
+      </div>
+
+      {sections.map((s) => (
+        <div key={s.h2} className="rounded-xl border border-[#f0f0f0] bg-white p-5">
+          <h3 className="text-base font-semibold text-[#34324a]">{s.h2}</h3>
+          <p className="mt-2 text-sm leading-7 text-[#6e6d74]">{s.content}</p>
+          {s.h3s?.map((h3) => (
+            <div key={h3.title} className="mt-4 rounded-lg bg-[#fafafa] p-3">
+              <p className="text-sm font-medium text-[#34324a]">{h3.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[#6e6d74]">{h3.content}</p>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {c.conclusion ? (
+        <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Conclusion</p>
+          <p className="mt-2 text-sm leading-6 text-[#6e6d74]">{String(c.conclusion)}</p>
+        </div>
+      ) : null}
+
+      {faq.length ? (
+        <div>
+          <SectionLabel label="FAQ" />
+          {faq.map((f) => <FAQItem key={f.question} question={f.question} answer={f.answer} />)}
+        </div>
+      ) : null}
+
+      <GhostButton onClick={() => onCopy(JSON.stringify(content, null, 2))}>
+        <Copy className="size-3.5" /> Copy all as JSON
+      </GhostButton>
+    </div>
+  );
+}
+
+/* ─── Generic Content View ─── */
+function GenericContentView({ content, onCopy }: { content: Record<string, unknown>; onCopy: (t: string) => void }) {
+  const c = content as Record<string, unknown>;
+  const sections = (c.sections || []) as Array<{ h2: string; content: string }>;
+  const faq = (c.faq || []) as Array<{ question: string; answer: string }>;
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Meta</p>
+        <p className="mt-2 text-sm font-medium text-[#34324a]">{String(c.metaTitle || "")}</p>
+        <p className="mt-1 text-xs text-[#6e6d74]">{String(c.metaDescription || "")}</p>
+      </div>
+
+      <div className="rounded-xl border border-[#e8e8fc] bg-[#f7f5fc] p-5">
+        <h2 className="font-display text-xl font-bold text-[#34324a]">{String(c.h1 || "")}</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6e6d74]">{String(c.heroDescription || "")}</p>
+      </div>
+
+      {sections.map((s) => (
+        <div key={s.h2} className="rounded-xl border border-[#f0f0f0] bg-white p-5">
+          <h3 className="text-base font-semibold text-[#34324a]">{s.h2}</h3>
+          <p className="mt-2 text-sm leading-7 text-[#6e6d74]">{s.content}</p>
+        </div>
+      ))}
+
+      {faq.length ? (
+        <div>
+          <SectionLabel label="FAQ" />
+          {faq.map((f) => <FAQItem key={f.question} question={f.question} answer={f.answer} />)}
+        </div>
+      ) : null}
+
+      <GhostButton onClick={() => onCopy(JSON.stringify(content, null, 2))}>
+        <Copy className="size-3.5" /> Copy all as JSON
+      </GhostButton>
+    </div>
+  );
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6933fa]">{label}</p>;
+}
+
+function FAQItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-[#f0f0f0] bg-white">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between px-4 py-3 text-left">
+        <span className="text-sm font-medium text-[#34324a]">{question}</span>
+        <ChevronRight className={cn("size-4 text-[#b5b5b5] transition", open && "rotate-90")} />
+      </button>
+      {open ? (
+        <div className="border-t border-[#f0f0f0] px-4 py-3">
+          <p className="text-sm leading-6 text-[#6e6d74]">{answer}</p>
+        </div>
+      ) : null}
+    </div>
+  );
 }

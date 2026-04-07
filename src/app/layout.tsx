@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
-import { Fraunces, Manrope } from "next/font/google";
+import { Inter, Inter_Tight } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const interTight = Inter_Tight({
+  variable: "--font-inter-tight",
   subsets: ["latin"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SEO - Growth",
+  title: "SEO Studio",
   description:
-    "A dark-mode SEO operations workspace for PageSpeed-style audits, keyword intelligence, fix planning, and page creation.",
+    "SEO operations workspace with multi-URL assessment, content generation, and keyword intelligence.",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${manrope.variable} ${fraunces.variable} min-h-screen bg-[#050816] font-sans text-[#dbe8ff] antialiased`}
+        className={`${inter.variable} ${interTight.variable} min-h-screen bg-[#fafafa] font-sans text-[#34324a] antialiased`}
       >
         {children}
         <Toaster richColors position="top-right" />
