@@ -890,6 +890,54 @@ function toTitleCase(text: string) {
   return text.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/* Map issue titles to evidence labels for accurate matching */
+const ISSUE_TO_EVIDENCE: Record<string, string> = {
+  "Missing title tag": "Title tag",
+  "Title tag length is outside the ideal range": "Title tag",
+  "Missing meta description": "Meta description",
+  "Meta description needs tightening": "Meta description",
+  "Canonical tag is missing": "Canonical",
+  "Page is marked noindex": "Robots meta",
+  "HTML language attribute is missing": "Language attribute",
+  "Viewport meta tag is missing": "Viewport",
+  "The page has no H1": "H1 heading",
+  "Multiple H1s dilute the page hierarchy": "H1 heading",
+  "Subheading structure is thin": "Heading structure",
+  "Page content is very thin": "Content depth",
+  "Page could use more semantic depth": "Content depth",
+  "Some images are missing alt text": "Image alt text",
+  "Internal linking is too sparse": "Internal links",
+  "Structured data is missing": "Structured data",
+  "Social preview metadata is incomplete": "Open Graph tags",
+  "Twitter card metadata is missing": "Twitter card",
+  "robots.txt is missing or inaccessible": "robots.txt",
+  "XML sitemap is missing or hard to discover": "Sitemap",
+  "DOM size is large": "DOM size",
+  "Too many JavaScript files": "JavaScript files",
+  "High image count on page": "Image optimization",
+  "Multiple render-blocking stylesheets": "Stylesheets",
+  "Page did not return a healthy status code": "Status code",
+  "Page structure is heavier than it needs to be": "DOM size",
+  "Stylesheet count suggests render-blocking overhead": "Stylesheets",
+};
+
+function findEvidenceForIssue(
+  issue: { title: string },
+  evidenceList: HtmlEvidence[]
+): HtmlEvidence | undefined {
+  const mappedLabel = ISSUE_TO_EVIDENCE[issue.title];
+  if (mappedLabel) {
+    const match = evidenceList.find((e) => e.label === mappedLabel);
+    if (match) return match;
+  }
+  // Fallback: fuzzy match on label
+  const lowerTitle = issue.title.toLowerCase();
+  return evidenceList.find((e) => {
+    const lowerLabel = e.label.toLowerCase();
+    return lowerTitle.includes(lowerLabel) || lowerLabel.includes(lowerTitle.split(" ")[0]);
+  });
+}
+
 function severityColor(s: Severity) {
   switch (s) {
     case "high": return { bg: "bg-[#fde8e8]", text: "text-[#E74C3C]", border: "border-[#E74C3C]/20" };
@@ -1053,6 +1101,23 @@ function AssessmentResultCard({
             <SnapshotItem label="Canonical" value={result.snapshot.canonical || "Missing"} />
           </div>
 
+          {/* Performance metrics */}
+          <div className="mb-5">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Performance Metrics</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <PerfGauge label="DOM Nodes" value={result.metrics.domNodes} good={800} poor={2000} unit="" />
+              <PerfGauge label="Scripts" value={result.metrics.scripts} good={10} poor={25} unit=" files" />
+              <PerfGauge label="Images" value={result.metrics.images} good={15} poor={40} unit="" />
+              <PerfGauge label="Stylesheets" value={result.metrics.stylesheets} good={3} poor={8} unit=" files" />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <PerfGauge label="Schema" value={result.metrics.structuredDataBlocks} good={1} poor={0} unit=" blocks" isPositive />
+              <PerfGauge label="Alt Missing" value={result.metrics.imagesMissingAlt} good={0} poor={5} unit=" imgs" />
+              <PerfGauge label="Int. Links" value={result.metrics.internalLinks} good={5} poor={2} unit="" isPositive />
+              <PerfGauge label="Word Count" value={result.metrics.wordCount} good={800} poor={250} unit=" words" isPositive />
+            </div>
+          </div>
+
           {/* Issues grouped */}
           {(["technicalSeo", "pagePerformance", "contentQuality"] as const).map((bucket) => {
             const issues = result.insights[bucket];
@@ -1064,7 +1129,7 @@ function AssessmentResultCard({
                 <div className="space-y-2">
                   {issues.map((issue) => {
                     const colors = severityColor(issue.severity);
-                    const matchingEvidence = result.htmlEvidence.find((e) => e.label.toLowerCase().includes(issue.title.split(" ")[0].toLowerCase()));
+                    const matchingEvidence = findEvidenceForIssue(issue, result.htmlEvidence);
                     return (
                       <button
                         key={issue.title}
@@ -1107,6 +1172,37 @@ function AssessmentResultCard({
   );
 }
 
+function PerfGauge({ label, value, good, poor, unit, isPositive }: {
+  label: string; value: number; good: number; poor: number; unit: string; isPositive?: boolean;
+}) {
+  let status: "good" | "warning" | "poor";
+  if (isPositive) {
+    status = value >= good ? "good" : value >= poor ? "warning" : "poor";
+  } else {
+    status = value <= good ? "good" : value < poor ? "warning" : "poor";
+  }
+  const statusColors = { good: "text-[#27AE60] bg-[#e6f7ee]", warning: "text-[#F39C12] bg-[#fef3e2]", poor: "text-[#E74C3C] bg-[#fde8e8]" };
+  const barColors = { good: "bg-[#27AE60]", warning: "bg-[#F39C12]", poor: "bg-[#E74C3C]" };
+  const pct = isPositive
+    ? Math.min(100, Math.round((value / Math.max(good, 1)) * 100))
+    : Math.max(0, Math.min(100, Math.round((1 - (value - good) / Math.max(poor - good, 1)) * 100)));
+
+  return (
+    <div className="rounded-xl border border-[#f0f0f0] bg-white p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#b5b5b5]">{label}</p>
+        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase", statusColors[status])}>
+          {status}
+        </span>
+      </div>
+      <p className="mt-1 text-sm font-bold text-[#34324a]">{value}{unit}</p>
+      <div className="mt-2 h-1.5 rounded-full bg-[#f0f0f0]">
+        <div className={cn("h-full rounded-full transition-all", barColors[status])} style={{ width: `${Math.max(5, pct)}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white px-4 py-3 text-center">
@@ -1144,7 +1240,7 @@ function FixModal({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#f0f0f0] bg-white p-6 shadow-xl"
+        className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#f0f0f0] bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
@@ -1164,7 +1260,7 @@ function FixModal({
 
         <div className="mt-5 space-y-4">
           <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#6e6d74]">Issue</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#6e6d74]">Issue Details</p>
             <p className="mt-2 text-sm leading-6 text-[#34324a]">{issue.evidence}</p>
           </div>
 
@@ -1175,21 +1271,23 @@ function FixModal({
 
           {evidence ? (
             <>
-              <div className="rounded-xl border border-[#E74C3C]/20 bg-[#fde8e8]/30 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#E74C3C]">Current State</p>
-                <code className="mt-2 block overflow-x-auto rounded-lg bg-white p-3 text-xs text-[#34324a]">
-                  {evidence.current}
-                </code>
+              <div className="rounded-xl border border-[#E74C3C]/20 bg-[#fde8e8]/10 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#E74C3C]">Current State</p>
+                  <span className="rounded-full bg-[#fde8e8] px-2 py-0.5 text-[10px] font-bold text-[#E74C3C]">BEFORE</span>
+                </div>
+                <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-[#f0f0f0] bg-white p-4 font-mono text-xs leading-5 text-[#5a5a5a]">{evidence.current}</pre>
               </div>
-              <div className="rounded-xl border border-[#27AE60]/20 bg-[#e6f7ee]/30 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#27AE60]">Recommended Fix</p>
-                <code className="mt-2 block overflow-x-auto rounded-lg bg-white p-3 text-xs text-[#34324a]">
-                  {evidence.solution}
-                </code>
+              <div className="rounded-xl border border-[#27AE60]/20 bg-[#e6f7ee]/10 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#27AE60]">Recommended Fix</p>
+                  <span className="rounded-full bg-[#e6f7ee] px-2 py-0.5 text-[10px] font-bold text-[#27AE60]">AFTER</span>
+                </div>
+                <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-[#f0f0f0] bg-white p-4 font-mono text-xs leading-5 text-[#34324a]">{evidence.solution}</pre>
               </div>
-              <div className="rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#6e6d74]">Why this matters</p>
-                <p className="mt-2 text-sm leading-6 text-[#6e6d74]">{evidence.why}</p>
+              <div className="rounded-xl border border-[#6933fa]/10 bg-[#f7f5fc] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#6933fa]">Why This Matters</p>
+                <p className="mt-2 text-sm leading-6 text-[#5a5a5a]">{evidence.why}</p>
               </div>
             </>
           ) : null}
